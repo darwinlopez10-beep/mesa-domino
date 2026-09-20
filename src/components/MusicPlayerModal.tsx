@@ -424,6 +424,7 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
 
   // Active YouTube video ID
   const activeVideoId = currentTrack?.videoId || (currentTrack?.url ? extractYouTubeId(currentTrack.url) : null);
+  const [resolvingTrackId, setResolvingTrackId] = useState<string | null>(null);
 
   // Canciones más escuchadas (ordenadas por cantidad de reproducciones descendente)
   const mostPlayedTracks = useMemo(() => {
@@ -520,73 +521,65 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
 
   // Selección manual de una canción (NUNCA automática)
   const handleSelectSong = async (track: MusicTrack, playlistContext?: MusicTrack[]) => {
-    // 1. Grabar automáticamente la canción seleccionada en el historial
-    const updatedHistory = recordSongPlay(track);
-    setHistory(updatedHistory);
+    let playTrack = track;
 
-    // 2. Notificar reproducción con la playlist contextual activa
-    onSelectTrack(track, playlistContext);
-    setIsVideoExpanded(true);
-
-    // Si la canción no tiene videoId específico, resolverlo rápidamente en segundo plano para máxima compatibilidad
-    if (!track.videoId && track.sourceType === 'youtube') {
-      try {
-        const q = `${track.artist} ${track.title}`;
-        let resolvedId: string | null = null;
-
-        // 1. Catálogo local
-        const local = CURATED_DOMINO_YOUTUBE_TRACKS.find(
-          (c) =>
-            c.title.toLowerCase() === track.title.toLowerCase() ||
-            track.title.toLowerCase().includes(c.title.toLowerCase())
-        );
-        if (local?.videoId) resolvedId = local.videoId;
-
-        // 2. Servidor si está activo
-        if (!resolvedId) {
-          try {
-            const sRes = await fetch(`/api/music/search?q=${encodeURIComponent(q)}`, {
-              signal: AbortSignal.timeout(2000),
-            });
-            if (sRes.ok) {
-              const sData = await sRes.json();
-              if (sData.results?.[0]?.videoId) resolvedId = sData.results[0].videoId;
-            }
-          } catch {}
-        }
-
-        // 3. Invidious CORS
-        if (!resolvedId) {
-          try {
-            const invRes = await fetch(
-              `https://invidious.flokinet.to/api/v1/search?q=${encodeURIComponent(q)}&type=video`,
-              { signal: AbortSignal.timeout(2500) }
+    // Si la canción no tiene videoId verificado de YouTube (o viene incompleta), resolverlo de inmediato antes de reproducir
+    if ((!playTrack.videoId || playTrack.videoId.length !== 11) && playTrack.sourceType === 'youtube') {
+      const extractedId = playTrack.url ? extractYouTubeId(playTrack.url) : null;
+      if (extractedId) {
+        playTrack = {
+          ...playTrack,
+          videoId: extractedId,
+          url: `https://www.youtube.com/embed/${extractedId}?autoplay=1&playsinline=1&enablejsapi=1`,
+        };
+      } else {
+        setResolvingTrackId(track.id);
+        try {
+          const q = `${playTrack.artist} ${playTrack.title}`;
+          const res = await fetch(`/api/music/search?q=${encodeURIComponent(q)}`, {
+            signal: AbortSignal.timeout(4000),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const firstWithId = data?.results?.find(
+              (r: any) => r && r.videoId && typeof r.videoId === 'string' && r.videoId.length === 11
             );
-            if (invRes.ok) {
-              const invData = await invRes.json();
-              if (invData?.[0]?.videoId) resolvedId = invData[0].videoId;
+            if (firstWithId) {
+              playTrack = {
+                ...playTrack,
+                videoId: firstWithId.videoId,
+                url: `https://www.youtube.com/embed/${firstWithId.videoId}?autoplay=1&playsinline=1&enablejsapi=1`,
+                artworkUrl: playTrack.artworkUrl || firstWithId.artworkUrl,
+              };
             }
-          } catch {}
+          }
+        } catch {
+          // Ignorar error de resolución
+        } finally {
+          setResolvingTrackId(null);
         }
-
-        if (resolvedId) {
-          const updated: MusicTrack = {
-            ...track,
-            videoId: resolvedId,
-            url: `https://www.youtube.com/embed/${resolvedId}?autoplay=1&playsinline=1&enablejsapi=1`,
-            artworkUrl: track.artworkUrl || `https://img.youtube.com/vi/${resolvedId}/hqdefault.jpg`,
-          };
-          const updatedWithResolved = recordSongPlay(updated);
-          setHistory(updatedWithResolved);
-          onSelectTrack(updated, playlistContext);
-        }
-      } catch {
-        // Mantiene la reproducción con listType=search
       }
     }
+
+    if (!playTrack.videoId) {
+      setSearchError(
+        lang === 'es'
+          ? 'No se pudo cargar el video de esta canción. Por favor intenta con otra.'
+          : 'Could not load the video for this song. Please try another one.'
+      );
+      return;
+    }
+
+    // 1. Grabar automáticamente la canción seleccionada en el historial
+    const updatedHistory = recordSongPlay(playTrack);
+    setHistory(updatedHistory);
+
+    // 2. Notificar reproducción con la canción garantizada con videoId
+    onSelectTrack(playTrack, playlistContext);
+    setIsVideoExpanded(true);
   };
 
-  // Protocolo Universal de Búsqueda Karaoke Pro (100% compatible con celulares Android y PC sin depender de backend)
+  // Búsqueda en YouTube rápida, fiable y con videoId verificado en cada resultado
   const handleSearchYouTube = async (termToSearch?: string) => {
     const rawVal = termToSearch !== undefined ? termToSearch : (searchInputRef.current?.value || searchQuery);
     const query = (rawVal || '').trim();
@@ -629,7 +622,7 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
     setSearchError(null);
     setHasSearched(true);
 
-    // 1. Coincidencias instantáneas del catálogo local de dominó (0ms, offline y verificado)
+    // 1. Coincidencias instantáneas del catálogo local de dominó (0ms, verificado)
     const queryLower = query.toLowerCase();
     const queryTokens = queryLower.split(/\s+/).filter(Boolean);
     const localMatches = CURATED_DOMINO_YOUTUBE_TRACKS.filter((t) => {
@@ -637,90 +630,36 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
       return queryTokens.every((token) => tStr.includes(token)) || tStr.includes(queryLower);
     });
 
-    // 2. Protocolo Karaoke Pro: Búsqueda universal directa en cliente mediante catálogo de Apple Music / iTunes
-    // Permite buscar CUALQUIER artista, canción o género en el mundo desde cualquier celular sin pasar por el servidor
-    const fetchClientCatalog = async (): Promise<MusicTrack[]> => {
-      try {
-        const res = await fetch(
-          `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=35`,
-          { signal: AbortSignal.timeout(4500) }
-        );
-        if (!res.ok) return [];
-        const data = await res.json();
-        if (!data || !Array.isArray(data.results)) return [];
-
-        return data.results.map((item: any) => {
-          const durSec = Math.round((item.trackTimeMillis || 0) / 1000);
-          const m = Math.floor(durSec / 60);
-          const s = durSec % 60;
-          const art = item.artistName || 'Artista';
-          const tit = item.trackName || 'Sin título';
-
-          const matchedLocal = CURATED_DOMINO_YOUTUBE_TRACKS.find(
-            (c) => c.title.toLowerCase() === tit.toLowerCase() && c.artist.toLowerCase() === art.toLowerCase()
-          );
-
-          return {
-            id: `itunes_${item.trackId}`,
-            videoId: matchedLocal?.videoId,
-            title: tit,
-            artist: art,
-            sourceType: 'youtube' as const,
-            url: matchedLocal?.videoId
-              ? `https://www.youtube.com/embed/${matchedLocal.videoId}?autoplay=1&playsinline=1&enablejsapi=1`
-              : `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(art + ' ' + tit)}&autoplay=1&playsinline=1&enablejsapi=1`,
-            artworkUrl: item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '300x300bb') : undefined,
-            durationSeconds: durSec,
-            durationText: durSec > 0 ? `${m}:${s < 10 ? '0' : ''}${s}` : undefined,
-            genre: item.primaryGenreName,
-            previewUrl: item.previewUrl,
-          };
-        });
-      } catch {
-        return [];
-      }
-    };
-
-    // 3. Consulta en paralelo a APIs de video directas (servidor local e Invidious CORS)
+    // 2. Búsqueda principal directa en YouTube mediante el backend integrado
+    // Devuelve videos reales con videoId verificado de 11 caracteres
     const fetchYouTubeDirect = async (): Promise<MusicTrack[]> => {
-      // 3.1 Probar servidor local si está activo
       try {
         const res = await fetch(`/api/music/search?q=${encodeURIComponent(query)}`, {
-          signal: AbortSignal.timeout(3000),
+          signal: AbortSignal.timeout(7000),
         });
         if (res.ok) {
           const data = await res.json();
           if (data && Array.isArray(data.results) && data.results.length > 0) {
-            return data.results;
+            return data.results.filter(
+              (r: any) => r && r.videoId && typeof r.videoId === 'string' && r.videoId.length === 11
+            );
           }
         }
-      } catch {}
+      } catch (err) {
+        console.warn('API primary search error:', err);
+      }
 
-      // 3.2 Probar Invidious CORS público
+      // Capa de respaldo en servidor
       try {
-        const invRes = await fetch(
-          `https://invidious.flokinet.to/api/v1/search?q=${encodeURIComponent(query)}&type=video`,
-          { signal: AbortSignal.timeout(3000) }
-        );
-        if (invRes.ok) {
-          const invData = await invRes.json();
-          if (Array.isArray(invData) && invData.length > 0) {
-            return invData.slice(0, 15).map((v: any) => {
-              const dur = v.lengthSeconds || 0;
-              const m = Math.floor(dur / 60);
-              const s = dur % 60;
-              return {
-                id: `yt_${v.videoId}`,
-                videoId: v.videoId,
-                title: v.title,
-                artist: v.author || 'YouTube',
-                sourceType: 'youtube' as const,
-                url: `https://www.youtube.com/embed/${v.videoId}?autoplay=1&playsinline=1&enablejsapi=1`,
-                artworkUrl: `https://img.youtube.com/vi/${v.videoId}/hqdefault.jpg`,
-                durationSeconds: dur,
-                durationText: dur > 0 ? `${m}:${s < 10 ? '0' : ''}${s}` : undefined,
-              };
-            });
+        const res2 = await fetch(`/api/youtube/search?q=${encodeURIComponent(query)}`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        if (res2.ok) {
+          const data2 = await res2.json();
+          if (data2 && Array.isArray(data2.results) && data2.results.length > 0) {
+            return data2.results.filter(
+              (r: any) => r && r.videoId && typeof r.videoId === 'string' && r.videoId.length === 11
+            );
           }
         }
       } catch {}
@@ -729,38 +668,24 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
     };
 
     try {
-      const [clientTracks, ytTracks] = await Promise.all([
-        fetchClientCatalog(),
-        fetchYouTubeDirect(),
-      ]);
+      const ytTracks = await fetchYouTubeDirect();
 
-      // Fusionar y desduplicar resultados respetando prioridad de calidad
+      // Fusionar y desduplicar por videoId garantizado
       const combined: MusicTrack[] = [];
-      const seenKeys = new Set<string>();
+      const seenVideoIds = new Set<string>();
 
       // 1. Primero las coincidencias locales verificadas
       for (const track of localMatches) {
-        const key = `${track.title.toLowerCase()}_${track.artist.toLowerCase()}`;
-        if (!seenKeys.has(key)) {
-          seenKeys.add(key);
+        if (track.videoId && !seenVideoIds.has(track.videoId)) {
+          seenVideoIds.add(track.videoId);
           combined.push(track);
         }
       }
 
-      // 2. Si obtuvimos videos directos de YouTube, agregarlos
+      // 2. Videos encontrados directamente en YouTube
       for (const track of ytTracks) {
-        const key = `${track.title.toLowerCase()}_${track.artist.toLowerCase()}`;
-        if (!seenKeys.has(key) && track.videoId) {
-          seenKeys.add(key);
-          combined.push(track);
-        }
-      }
-
-      // 3. Agregar el catálogo universal completo de canciones
-      for (const track of clientTracks) {
-        const key = `${track.title.toLowerCase()}_${track.artist.toLowerCase()}`;
-        if (!seenKeys.has(key)) {
-          seenKeys.add(key);
+        if (track.videoId && !seenVideoIds.has(track.videoId)) {
+          seenVideoIds.add(track.videoId);
           combined.push(track);
         }
       }
@@ -775,8 +700,8 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
         setSearchResults([]);
         setSearchError(
           lang === 'es'
-            ? `No se encontraron canciones para "${query}". Intenta buscar con otro nombre.`
-            : `No songs found for "${query}". Try searching with another name.`
+            ? `No se encontraron videos disponibles para "${query}". Intenta con otro cantante o canción.`
+            : `No videos available for "${query}". Try searching another artist or song.`
         );
       }
     } catch {
@@ -787,8 +712,8 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
         setSearchResults([]);
         setSearchError(
           lang === 'es'
-            ? `No se encontraron resultados para "${query}". Toca uno de los botones de artistas abajo.`
-            : `No results found for "${query}". Tap one of the artist buttons below.`
+            ? `Error al buscar música. Intenta de nuevo o toca un botón de artista abajo.`
+            : `Error searching music. Try again or tap an artist button below.`
         );
       }
     } finally {
@@ -822,10 +747,6 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
 
   const embedUrl = activeVideoId
     ? `https://www.youtube.com/embed/${activeVideoId}?autoplay=${isPlaying ? 1 : 0}&playsinline=1&enablejsapi=1&rel=0`
-    : currentTrack
-    ? (currentTrack.url && currentTrack.url.includes('embed')
-        ? currentTrack.url
-        : `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(currentTrack.artist + ' ' + currentTrack.title)}&autoplay=${isPlaying ? 1 : 0}&playsinline=1&enablejsapi=1&rel=0`)
     : '';
 
   return (
@@ -1538,6 +1459,7 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
 
                         <button
                           type="button"
+                          disabled={resolvingTrackId === track.id}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (isThisTrackSelected) {
@@ -1552,7 +1474,9 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
                               : 'bg-red-600 hover:bg-red-500 active:bg-red-700 text-white shadow-red-950/30'
                           }`}
                         >
-                          {isThisPlaying ? (
+                          {resolvingTrackId === track.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-white" />
+                          ) : isThisPlaying ? (
                             <>
                               <Pause className="w-4 h-4 fill-current" />
                               <span className="hidden xs:inline">{t.pause}</span>

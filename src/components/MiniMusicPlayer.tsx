@@ -18,6 +18,9 @@ import {
   SkipForward,
   Radio,
   Repeat,
+  AlertCircle,
+  RotateCcw,
+  Loader2,
 } from 'lucide-react';
 import { MusicTrack } from '../types';
 import { AppLanguage } from '../utils/i18n';
@@ -98,6 +101,8 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
   // YouTube live playback state reported by iframe
   const [ytCurrentTime, setYtCurrentTime] = useState(0);
   const [ytDuration, setYtDuration] = useState(0);
+  const [embedError, setEmbedError] = useState<number | null>(null);
+  const [isAutoRecovering, setIsAutoRecovering] = useState(false);
 
   // Extraer cola de reproducción continua nativa para el reproductor embebido de YouTube
   // Esto permite que en iPhone Safari y Android Chrome, el reproductor interno de YouTube
@@ -140,7 +145,7 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
       }
     }
 
-    // Mantener hasta 25 IDs (óptimo para URLs sin sobrepasar límites de navegadores móviles)
+    // Mantener hasta 25 IDs
     return ordered.slice(0, 25);
   }, [playlist, ytVideoId]);
 
@@ -157,24 +162,12 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
       ? Math.min(100, (effectiveCurrentTime / effectiveDuration) * 100)
       : 0;
 
-  // Construct standard embed URL with JavaScript API enabled and origin
-  const originParam =
-    typeof window !== 'undefined' && window.location.origin
-      ? `&origin=${encodeURIComponent(window.location.origin)}`
-      : '';
-
-  const playlistParam =
-    upcomingVideoIds.length > 0
-      ? `&playlist=${upcomingVideoIds.join(',')}&loop=1`
-      : '';
-
+  // Construct standard YouTube embed URL with JavaScript API enabled (without broken search or origin restrictions)
   const embedUrl = ytVideoId
-    ? `https://www.youtube.com/embed/${ytVideoId}?autoplay=${isPlaying ? 1 : 0}&playsinline=1&enablejsapi=1&version=3&rel=0${playlistParam}${originParam}`
+    ? `https://www.youtube.com/embed/${ytVideoId}?autoplay=${isPlaying ? 1 : 0}&playsinline=1&enablejsapi=1&version=3&rel=0`
     : track.url && track.url.includes('embed')
-    ? `${track.url}&autoplay=${isPlaying ? 1 : 0}&playsinline=1&enablejsapi=1&version=3&rel=0${playlistParam}${originParam}`
-    : `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(
-        track.artist + ' ' + track.title
-      )}&autoplay=${isPlaying ? 1 : 0}&playsinline=1&enablejsapi=1&version=3&rel=0${originParam}`;
+    ? track.url
+    : '';
 
   const [currentIframeSrc, setCurrentIframeSrc] = useState(embedUrl);
 
@@ -274,6 +267,7 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
     playStartTimestampRef.current = Date.now();
     setYtCurrentTime(0);
     setYtDuration(0);
+    setEmbedError(null);
     if (ytVideoId) {
       lastKnownVideoIdRef.current = ytVideoId;
     }
@@ -306,7 +300,40 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
     }
   }, [isAutoplay, isPlaying, onTogglePlay, onNextTrack, sendYouTubeCommand]);
 
-  // Listen to YouTube postMessage events (onStateChange: 0 means ENDED, infoDelivery playerState: 0)
+  // Intentar encontrar automáticamente una versión alternativa reproducible si YouTube bloquea la inserción (Error 101/150)
+  const handleAutoRecoverVideo = useCallback(async () => {
+    if (isAutoRecovering) return;
+    setIsAutoRecovering(true);
+    try {
+      const q = `${track.artist} ${track.title} audio`;
+      const res = await fetch(`/api/music/search?q=${encodeURIComponent(q)}`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const altTrack = data?.results?.find(
+          (r: any) => r && r.videoId && r.videoId !== ytVideoId && r.videoId.length === 11
+        );
+        if (altTrack && onTrackAutoAdvanced) {
+          const newTrack: MusicTrack = {
+            ...track,
+            videoId: altTrack.videoId,
+            url: `https://www.youtube.com/embed/${altTrack.videoId}?autoplay=1&playsinline=1&enablejsapi=1`,
+            artworkUrl: altTrack.artworkUrl || track.artworkUrl,
+          };
+          setEmbedError(null);
+          onTrackAutoAdvanced(newTrack, playlist);
+          setIsAutoRecovering(false);
+          return;
+        }
+      }
+    } catch {
+      // Ignorar fallo de red
+    }
+    setIsAutoRecovering(false);
+  }, [isAutoRecovering, track, ytVideoId, onTrackAutoAdvanced, playlist]);
+
+  // Listen to YouTube postMessage events (onStateChange: 0 means ENDED, infoDelivery playerState: 0, onError)
   useEffect(() => {
     if (!isYouTube) return;
 
@@ -341,8 +368,6 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
         }
 
         // Detección de avance automático nativo dentro del reproductor de YouTube:
-        // Cuando YouTube termina la canción y arranca la siguiente pista de la playlist incorporada,
-        // envía data.info.videoData con el nuevo video_id
         const incomingVideoId = data.info?.videoData?.video_id;
         if (
           incomingVideoId &&
@@ -382,6 +407,13 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
         ) {
           triggerNextTrack();
         }
+      }
+
+      // 3. YouTube Error Event (e.g. 101/150 embed blocked, 100 video not found, 2/5 invalid params)
+      if (data.event === 'onError' || (data.event === 'infoDelivery' && data.info?.errorCode)) {
+        const errCode = Number(data.data ?? data.info?.errorCode ?? 150);
+        console.warn('YouTube playback error or embed restriction code:', errCode);
+        setEmbedError(errCode);
       }
     };
 
@@ -533,7 +565,7 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
         {/* Persistent YouTube iframe element (keeps playing in background even if modal is open) */}
         {isYouTube && (ytVideoId || track.artist || track.url) && (
           <div
-            className={`transition-all duration-300 overflow-hidden rounded-xl bg-black border border-stone-800 ${
+            className={`transition-all duration-300 overflow-hidden rounded-xl bg-black border border-stone-800 relative ${
               showVideo ? 'w-full aspect-video opacity-100 mb-1' : 'w-full h-1 opacity-0 pointer-events-none'
             }`}
           >
@@ -544,9 +576,62 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
               title={track.title}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
+              referrerPolicy="strict-origin-when-cross-origin"
               onLoad={handleIframeLoad}
               className="w-full h-full"
             />
+
+            {/* Aviso y recuperación automática si YouTube bloquea la inserción (Error 101/150 o no disponible) */}
+            {embedError !== null && showVideo && (
+              <div className="absolute inset-0 bg-stone-950/92 backdrop-blur-md flex flex-col items-center justify-center p-3 text-center z-10 animate-in fade-in duration-200">
+                <AlertCircle className="w-8 h-8 text-amber-400 mb-2 flex-shrink-0" />
+                <p className="text-xs font-bold text-stone-100 mb-1">
+                  {lang === 'es'
+                    ? 'Este video tiene restricción de reproducción externa'
+                    : 'This video has embedding playback restrictions'}
+                </p>
+                <p className="text-[11px] text-stone-400 mb-3 max-w-xs leading-relaxed">
+                  {lang === 'es'
+                    ? 'El autor restringió la reproducción en otras apps. Toca abajo para buscar otra versión o abrirlo directamente.'
+                    : 'The author restricted embeds. Tap below to find another version or open in YouTube.'}
+                </p>
+                <div className="flex items-center gap-2 flex-wrap justify-center">
+                  <button
+                    type="button"
+                    disabled={isAutoRecovering}
+                    onClick={handleAutoRecoverVideo}
+                    className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-stone-950 font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
+                  >
+                    {isAutoRecovering ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    )}
+                    <span>{lang === 'es' ? 'Buscar otra versión' : 'Find alternative version'}</span>
+                  </button>
+                  {ytVideoId && (
+                    <a
+                      href={`https://www.youtube.com/watch?v=${ytVideoId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>{lang === 'es' ? 'Ver en YouTube' : 'Watch on YouTube'}</span>
+                    </a>
+                  )}
+                  {onNextTrack && (
+                    <button
+                      type="button"
+                      onClick={onNextTrack}
+                      className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold cursor-pointer transition-all"
+                    >
+                      {lang === 'es' ? 'Siguiente' : 'Next'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
