@@ -25,14 +25,7 @@ import {
 import { MusicTrack } from '../types';
 import { AppLanguage } from '../utils/i18n';
 import { extractYouTubeId, CURATED_DOMINO_YOUTUBE_TRACKS } from './MusicPlayerModal';
-import { parseDurationText, getNextTrack } from '../utils/backgroundAudio';
-
-declare global {
-  interface Window {
-    YT?: any;
-    onYouTubeIframeAPIReady?: () => void;
-  }
-}
+import { parseDurationText } from '../utils/backgroundAudio';
 
 interface MiniMusicPlayerProps {
   track: MusicTrack;
@@ -78,19 +71,8 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
   const [showVideo, setShowVideo] = useState(true);
   const [showVolumeControls, setShowVolumeControls] = useState(true);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const playerRef = useRef<any>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const preMuteRef = useRef(volume > 0 ? volume : 0.7);
-
-  // Mantener referencias actualizadas para eventos de callbacks asíncronos de YouTube
-  const trackRef = useRef(track);
-  trackRef.current = track;
-  const playlistRef = useRef(playlist);
-  playlistRef.current = playlist;
-  const isAutoplayRef = useRef(isAutoplay);
-  isAutoplayRef.current = isAutoplay;
-  const isPlayingRef = useRef(isPlaying);
-  isPlayingRef.current = isPlaying;
 
   // Mantener guardado el último volumen activo no nulo
   useEffect(() => {
@@ -278,13 +260,10 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
   const loadedTrackKeyRef = useRef<string | null>(null);
   const playStartTimestampRef = useRef<number>(Date.now());
 
-  // 3. Cambio continuo de canciones en móvil:
-  // En el evento onPlayerStateChange de la API de YouTube, cuando event.data === YT.PlayerState.ENDED,
-  // ejecuta player.loadVideoById(siguienteId) en lugar de cueVideoById, para forzar el salto inmediato a la siguiente pista de la lista.
   const triggerNextTrack = useCallback(() => {
-    // Si Autoplay está desactivado, pausar
-    if (!isAutoplayRef.current) {
-      if (isPlayingRef.current) {
+    // If Autoplay is disabled, pause instead of skipping automatically
+    if (!isAutoplay) {
+      if (isPlaying) {
         onTogglePlay();
       }
       return;
@@ -293,88 +272,16 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
     if (hasTriggeredNextRef.current) return;
     hasTriggeredNextRef.current = true;
 
-    // Permitir recuperación tras 3.5 segundos
+    // Permitir recuperación si pasan más de 3.5 segundos
     setTimeout(() => {
       hasTriggeredNextRef.current = false;
     }, 3500);
 
-    // Calcular la siguiente pista de la lista activa
-    const activeList =
-      playlistRef.current && playlistRef.current.length > 0
-        ? playlistRef.current
-        : CURATED_DOMINO_YOUTUBE_TRACKS;
-    const nextTrack = getNextTrack(
-      trackRef.current,
-      activeList,
-      CURATED_DOMINO_YOUTUBE_TRACKS
-    );
-    const siguienteId =
-      nextTrack?.videoId || (nextTrack?.url ? extractYouTubeId(nextTrack.url) : null);
-
-    // Ejecuta player.loadVideoById(siguienteId) en lugar de cueVideoById
-    if (siguienteId) {
-      if (playerRef.current && typeof playerRef.current.loadVideoById === 'function') {
-        try {
-          playerRef.current.loadVideoById(siguienteId);
-        } catch (err) {
-          console.warn('Error en player.loadVideoById:', err);
-        }
-      }
-      // Comando postMessage directo al iframe para máxima fiabilidad en Android y iOS
-      sendYouTubeCommand('loadVideoById', [siguienteId, 0]);
-      sendYouTubeCommand('playVideo');
-    }
-
-    // Notificar al estado de la aplicación para actualizar metadatos, carátula y lista activa
-    if (nextTrack && onTrackAutoAdvanced) {
-      onTrackAutoAdvanced(nextTrack, activeList);
-    } else if (onNextTrack) {
+    // Notificar a la aplicación para pasar a la siguiente canción de la lista
+    if (onNextTrack) {
       onNextTrack();
     }
-  }, [onTogglePlay, onTrackAutoAdvanced, onNextTrack, sendYouTubeCommand]);
-
-  // Instancia oficial de YT.Player para capturar onPlayerStateChange de forma nativa en navegadores móviles
-  useEffect(() => {
-    if (!isYouTube || !iframeLoaded) return;
-
-    const setupPlayerInstance = () => {
-      if (typeof window !== 'undefined' && window.YT && window.YT.Player) {
-        try {
-          if (!playerRef.current) {
-            playerRef.current = new window.YT.Player('persistent-domino-youtube-iframe', {
-              events: {
-                onStateChange: (event: any) => {
-                  // En el evento onPlayerStateChange de la API de YouTube, cuando event.data === YT.PlayerState.ENDED:
-                  if (event.data === (window.YT?.PlayerState?.ENDED ?? 0)) {
-                    triggerNextTrack();
-                  }
-                },
-                onError: (event: any) => {
-                  const errCode = Number(event.data || 150);
-                  console.warn('YT.Player error event:', errCode);
-                  setEmbedError(errCode);
-                },
-              },
-            });
-          }
-        } catch (e) {
-          console.warn('Notice attaching YT.Player instance:', e);
-        }
-      }
-    };
-
-    if (typeof window !== 'undefined') {
-      if (window.YT && window.YT.Player) {
-        setupPlayerInstance();
-      } else {
-        const prev = window.onYouTubeIframeAPIReady;
-        window.onYouTubeIframeAPIReady = () => {
-          if (prev) prev();
-          setupPlayerInstance();
-        };
-      }
-    }
-  }, [isYouTube, iframeLoaded, triggerNextTrack]);
+  }, [isAutoplay, isPlaying, onTogglePlay, onNextTrack]);
 
   // Intentar encontrar automáticamente una versión alternativa reproducible si YouTube bloquea la inserción (Error 101/150)
   const handleAutoRecoverVideo = useCallback(async () => {
@@ -638,112 +545,97 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
   };
 
   return (
-    <>
-      {/* 2. IFrame de YouTube visible para el sistema (nunca display:none, visibility:hidden ni 0x0 para evitar que Android lo suspenda) */}
-      {isYouTube && (ytVideoId || track.artist || track.url) && (
-        <div
-          id="youtube-active-player-wrapper"
-          style={
-            showVideo && !isModalOpen
-              ? undefined
-              : {
-                  position: 'absolute',
-                  top: '-9999px',
-                  left: '-9999px',
-                  width: '200px',
-                  height: '200px',
-                  opacity: 0.01,
-                  pointerEvents: 'none',
-                }
-          }
-          className={
-            showVideo && !isModalOpen
-              ? 'fixed bottom-28 sm:bottom-32 left-2 right-2 sm:left-auto sm:right-6 sm:w-96 z-40 rounded-xl overflow-hidden bg-black border border-stone-800 shadow-2xl aspect-video transition-all duration-200'
-              : ''
-          }
-        >
-          <iframe
-            ref={iframeRef}
-            id="persistent-domino-youtube-iframe"
-            src={currentIframeSrc}
-            title={track.title}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-            referrerPolicy="strict-origin-when-cross-origin"
-            onLoad={handleIframeLoad}
-            style={{ width: '100%', height: '100%', border: 'none' }}
-          />
+    <div
+      id="mini-music-player-container"
+      className={`transition-all duration-300 ${
+        isModalOpen
+          ? 'opacity-0 pointer-events-none fixed -bottom-96 -right-96 z-0'
+          : 'fixed bottom-16 sm:bottom-6 landscape:bottom-2 left-2 right-2 sm:left-auto sm:right-6 landscape:left-auto landscape:right-3 sm:w-96 landscape:w-84 z-40 animate-in slide-in-from-bottom-3 duration-200'
+      }`}
+    >
+      <div className="bg-stone-900/95 backdrop-blur-md border border-stone-750/90 rounded-2xl shadow-2xl shadow-black/80 p-2.5 sm:p-3 flex flex-col gap-2">
+        {/* Persistent YouTube iframe element (keeps playing in background even if modal is open) */}
+        {isYouTube && (ytVideoId || track.artist || track.url) && (
+          <div
+            className={`transition-all duration-300 overflow-hidden rounded-xl bg-black border border-stone-800 relative ${
+              showVideo ? 'w-full aspect-video opacity-100 mb-1' : 'w-full h-1 opacity-0 pointer-events-none'
+            }`}
+          >
+            <iframe
+              ref={iframeRef}
+              id="persistent-domino-youtube-iframe"
+              src={currentIframeSrc}
+              title={track.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              referrerPolicy="strict-origin-when-cross-origin"
+              onLoad={handleIframeLoad}
+              className="w-full h-full"
+            />
 
-          {/* Aviso y recuperación automática si YouTube bloquea la inserción (Error 101/150 o no disponible) */}
-          {embedError !== null && showVideo && !isModalOpen && (
-            <div className="absolute inset-0 bg-stone-950/92 backdrop-blur-md flex flex-col items-center justify-center p-3 text-center z-10 animate-in fade-in duration-200">
-              <AlertCircle className="w-8 h-8 text-amber-400 mb-2 flex-shrink-0" />
-              <p className="text-xs font-bold text-stone-100 mb-1">
-                {lang === 'es'
-                  ? 'Este video tiene restricción de reproducción externa'
-                  : 'This video has embedding playback restrictions'}
-              </p>
-              <p className="text-[11px] text-stone-400 mb-3 max-w-xs leading-relaxed">
-                {lang === 'es'
-                  ? 'El autor restringió la reproducción en otras apps. Toca abajo para buscar otra versión o abrirlo directamente.'
-                  : 'The author restricted embeds. Tap below to find another version or open in YouTube.'}
-              </p>
-              <div className="flex items-center gap-2 flex-wrap justify-center">
-                <button
-                  type="button"
-                  disabled={isAutoRecovering}
-                  onClick={handleAutoRecoverVideo}
-                  className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-stone-950 font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
-                >
-                  {isAutoRecovering ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  )}
-                  <span>{lang === 'es' ? 'Buscar otra versión' : 'Find alternative version'}</span>
-                </button>
-                {ytVideoId && (
-                  <a
-                    href={`https://www.youtube.com/watch?v=${ytVideoId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>{lang === 'es' ? 'Ver en YouTube' : 'Watch on YouTube'}</span>
-                  </a>
-                )}
-                {onNextTrack && (
+            {/* Aviso y recuperación automática si YouTube bloquea la inserción (Error 101/150 o no disponible) */}
+            {embedError !== null && showVideo && (
+              <div className="absolute inset-0 bg-stone-950/92 backdrop-blur-md flex flex-col items-center justify-center p-3 text-center z-10 animate-in fade-in duration-200">
+                <AlertCircle className="w-8 h-8 text-amber-400 mb-2 flex-shrink-0" />
+                <p className="text-xs font-bold text-stone-100 mb-1">
+                  {lang === 'es'
+                    ? 'Este video tiene restricción de reproducción externa'
+                    : 'This video has embedding playback restrictions'}
+                </p>
+                <p className="text-[11px] text-stone-400 mb-3 max-w-xs leading-relaxed">
+                  {lang === 'es'
+                    ? 'El autor restringió la reproducción en otras apps. Toca abajo para buscar otra versión o abrirlo directamente.'
+                    : 'The author restricted embeds. Tap below to find another version or open in YouTube.'}
+                </p>
+                <div className="flex items-center gap-2 flex-wrap justify-center">
                   <button
                     type="button"
-                    onClick={onNextTrack}
-                    className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold cursor-pointer transition-all"
+                    disabled={isAutoRecovering}
+                    onClick={handleAutoRecoverVideo}
+                    className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-stone-950 font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
                   >
-                    {lang === 'es' ? 'Siguiente' : 'Next'}
+                    {isAutoRecovering ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    )}
+                    <span>{lang === 'es' ? 'Buscar otra versión' : 'Find alternative version'}</span>
                   </button>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Mini reproductor flotante con controles */}
-      {!isModalOpen && (
-        <div
-          id="mini-music-player-container"
-          className="fixed bottom-16 sm:bottom-6 landscape:bottom-2 left-2 right-2 sm:left-auto sm:right-6 landscape:left-auto landscape:right-3 sm:w-96 landscape:w-84 z-40 animate-in slide-in-from-bottom-3 duration-200"
-        >
-          <div className="bg-stone-900/95 backdrop-blur-md border border-stone-750/90 rounded-2xl shadow-2xl shadow-black/80 p-2.5 sm:p-3 flex flex-col gap-2">
-            {/* Progress Bar (if track has finite duration) */}
-            {effectiveDuration > 0 && (
-              <div className="w-full bg-stone-800 h-1 rounded-full overflow-hidden">
-                <div
-                  className="bg-amber-500 h-full transition-all duration-300 rounded-full"
-                  style={{ width: `${progressPercent}%` }}
-                />
+                  {ytVideoId && (
+                    <a
+                      href={`https://www.youtube.com/watch?v=${ytVideoId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>{lang === 'es' ? 'Ver en YouTube' : 'Watch on YouTube'}</span>
+                    </a>
+                  )}
+                  {onNextTrack && (
+                    <button
+                      type="button"
+                      onClick={onNextTrack}
+                      className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold cursor-pointer transition-all"
+                    >
+                      {lang === 'es' ? 'Siguiente' : 'Next'}
+                    </button>
+                  )}
+                </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Progress Bar (if track has finite duration) */}
+        {effectiveDuration > 0 && (
+          <div className="w-full bg-stone-800 h-1 rounded-full overflow-hidden">
+            <div
+              className="bg-amber-500 h-full transition-all duration-300 rounded-full"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        )}
 
         {/* Header indicator: Auto Siguiente / Autoplay */}
         {onToggleAutoplay && (
@@ -1057,7 +949,5 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
         )}
       </div>
     </div>
-  )}
-</>
   );
 };

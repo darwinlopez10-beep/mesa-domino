@@ -591,19 +591,11 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
     // 2. Búsqueda principal directa en YouTube mediante el backend integrado
     // Devuelve videos reales con videoId verificado de 11 caracteres
     const fetchYouTubeDirect = async (): Promise<MusicTrack[]> => {
-      const fetchWithTimeout = async (url: string, ms = 7000) => {
-        const controller = new AbortController();
-        const tid = setTimeout(() => controller.abort(), ms);
-        try {
-          return await fetch(url, { signal: controller.signal });
-        } finally {
-          clearTimeout(tid);
-        }
-      };
-
       try {
-        const res = await fetchWithTimeout(`/api/music/search?q=${encodeURIComponent(query)}`, 7000);
-        if (res && res.ok) {
+        const res = await fetch(`/api/music/search?q=${encodeURIComponent(query)}`, {
+          signal: AbortSignal.timeout(7000),
+        });
+        if (res.ok) {
           const data = await res.json();
           if (data && Array.isArray(data.results) && data.results.length > 0) {
             return data.results.filter(
@@ -612,13 +604,15 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
           }
         }
       } catch (err) {
-        console.warn('API primary search notice:', err);
+        console.warn('API primary search error:', err);
       }
 
       // Capa de respaldo en servidor
       try {
-        const res2 = await fetchWithTimeout(`/api/youtube/search?q=${encodeURIComponent(query)}`, 6000);
-        if (res2 && res2.ok) {
+        const res2 = await fetch(`/api/youtube/search?q=${encodeURIComponent(query)}`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        if (res2.ok) {
           const data2 = await res2.json();
           if (data2 && Array.isArray(data2.results) && data2.results.length > 0) {
             return data2.results.filter(
@@ -683,24 +677,6 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
     } finally {
       setIsSearching(false);
     }
-  };
-
-  // Manejador central del submit del formulario para teléfonos móviles (tecla Ir/Enter o botón Buscar)
-  const handleFormSubmit = (e?: React.FormEvent) => {
-    if (e) {
-      e.preventDefault();
-    }
-    const rawVal = searchInputRef.current?.value !== undefined && searchInputRef.current?.value !== ''
-      ? searchInputRef.current.value
-      : searchQuery;
-    const query = (rawVal || '').trim();
-    if (searchInputRef.current) {
-      searchInputRef.current.blur();
-    }
-    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-    handleSearchYouTube(query);
   };
 
   // Al presionar un botón de artista/género rápido: solo busca, NUNCA reproduce automáticamente
@@ -770,8 +746,12 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
           {/* 1. BARRA DE BÚSQUEDA GENERAL ARRIBA (Misma estructura exacta en celular y computadora) */}
           <div ref={searchBarContainerRef} className="space-y-2.5">
             <form
-              id="search-form"
-              onSubmit={handleFormSubmit}
+              action="javascript:void(0)"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const term = searchInputRef.current?.value ?? searchQuery;
+                handleSearchYouTube(term);
+              }}
               className="flex flex-row items-center gap-2 w-full"
             >
               {/* Etiqueta "YouTube" integrada */}
@@ -793,10 +773,17 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
                   spellCheck={false}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.keyCode === 13) {
+                      e.preventDefault();
+                      const term = searchInputRef.current?.value ?? searchQuery;
+                      handleSearchYouTube(term);
+                    }
+                  }}
                   placeholder={
                     lang === 'es'
-                      ? 'Escribe cualquier cantante (ej: Ana Gabriel, Vicente Fernández)...'
-                      : 'Type any artist or song (e.g. Ana Gabriel, Shakira, Queen)...'
+                      ? 'Escribe cualquier cantante (ej: Vicente Fernández, Gabriel, Shakira)...'
+                      : 'Type any artist or song (e.g. Queen, Frank Sinatra, Shakira)...'
                   }
                   className="w-full bg-transparent px-2.5 sm:px-3 py-2.5 text-xs sm:text-sm text-stone-100 placeholder:text-stone-500 focus:outline-none min-h-[44px]"
                 />
@@ -819,11 +806,16 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
                 )}
               </div>
 
-              {/* Botón con la palabra Buscar al lado (type submit para disparo nativo en móviles) */}
+              {/* Botón con la palabra Buscar al lado (type submit + onClick para máxima compatibilidad móvil y PC) */}
               <button
                 type="submit"
                 id="btn-search-music"
                 disabled={isSearching}
+                onClick={(e) => {
+                  e.preventDefault();
+                  const term = searchInputRef.current?.value ?? searchQuery;
+                  handleSearchYouTube(term);
+                }}
                 className="px-4 sm:px-5 py-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-50 text-stone-950 font-black text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 flex-shrink-0 cursor-pointer min-h-[44px] min-w-[84px] touch-manipulation active:scale-95 select-none"
               >
                 {isSearching ? (
