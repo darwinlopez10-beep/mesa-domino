@@ -257,21 +257,8 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
 
   // Guard against duplicate triggers of next track for the same song
   const hasTriggeredNextRef = useRef(false);
-  const prevLoadedVideoIdRef = useRef<string | null>(ytVideoId || track.id || null);
-  const lastKnownVideoIdRef = useRef<string>(ytVideoId || '');
+  const loadedTrackKeyRef = useRef<string | null>(null);
   const playStartTimestampRef = useRef<number>(Date.now());
-
-  // Reset trigger flag and timers when track changes
-  useEffect(() => {
-    hasTriggeredNextRef.current = false;
-    playStartTimestampRef.current = Date.now();
-    setYtCurrentTime(0);
-    setYtDuration(0);
-    setEmbedError(null);
-    if (ytVideoId) {
-      lastKnownVideoIdRef.current = ytVideoId;
-    }
-  }, [track.id, track.videoId, track.url, ytVideoId]);
 
   const triggerNextTrack = useCallback(() => {
     // If Autoplay is disabled, pause instead of skipping automatically
@@ -285,20 +272,16 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
     if (hasTriggeredNextRef.current) return;
     hasTriggeredNextRef.current = true;
 
-    // 1. Enviar comando nativo nextVideo al reproductor de YouTube para que avance de inmediato
-    sendYouTubeCommand('nextVideo');
-    sendYouTubeCommand('playVideo');
-
-    // 2. Permitir recuperación si pasan más de 3 segundos
+    // Permitir recuperación si pasan más de 3.5 segundos
     setTimeout(() => {
       hasTriggeredNextRef.current = false;
-    }, 3000);
+    }, 3500);
 
-    // 3. Notificar a la aplicación para actualizar la canción activa en el catálogo
+    // Notificar a la aplicación para pasar a la siguiente canción de la lista
     if (onNextTrack) {
       onNextTrack();
     }
-  }, [isAutoplay, isPlaying, onTogglePlay, onNextTrack, sendYouTubeCommand]);
+  }, [isAutoplay, isPlaying, onTogglePlay, onNextTrack]);
 
   // Intentar encontrar automáticamente una versión alternativa reproducible si YouTube bloquea la inserción (Error 101/150)
   const handleAutoRecoverVideo = useCallback(async () => {
@@ -374,9 +357,9 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
           typeof incomingVideoId === 'string' &&
           incomingVideoId.length >= 8 &&
           incomingVideoId !== ytVideoId &&
-          incomingVideoId !== lastKnownVideoIdRef.current
+          incomingVideoId !== loadedTrackKeyRef.current
         ) {
-          lastKnownVideoIdRef.current = incomingVideoId;
+          loadedTrackKeyRef.current = incomingVideoId;
           const list = playlist && playlist.length > 0 ? playlist : CURATED_DOMINO_YOUTUBE_TRACKS;
           const matched = list.find(
             (t) => (t.videoId || extractYouTubeId(t.url)) === incomingVideoId
@@ -479,24 +462,38 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
 
   // Handle seamless track transition in existing iframe on mobile
   // Mobile browsers allow loadVideoById on an already activated iframe!
+  // Handle seamless track transition in existing iframe on mobile & desktop
+  // Whenever the active track changes (user clicks another song, or advances to next track)
   useEffect(() => {
     if (!isYouTube) return;
 
     const currentKey = ytVideoId || track.id || track.url;
-    if (prevLoadedVideoIdRef.current === currentKey) return;
-    prevLoadedVideoIdRef.current = currentKey;
+    if (!currentKey) return;
 
-    // Si YouTube ya avanzó nativamente y ya está reproduciendo este ID,
-    // evitamos enviar loadVideoById redundante para no generar pausas
-    if (lastKnownVideoIdRef.current === ytVideoId && ytVideoId) {
-      return;
-    }
-    if (ytVideoId) {
-      lastKnownVideoIdRef.current = ytVideoId;
-    }
+    // Si ya es la misma canción actualmente cargada y activa, omitir
+    if (loadedTrackKeyRef.current === currentKey) return;
+    loadedTrackKeyRef.current = currentKey;
 
-    if (iframeLoaded) {
-      if (ytVideoId) {
+    // 1. Resetear contadores de tiempo, errores y guardia de cambio de canción
+    hasTriggeredNextRef.current = false;
+    playStartTimestampRef.current = Date.now();
+    setYtCurrentTime(0);
+    setYtDuration(0);
+    setEmbedError(null);
+
+    // 2. Nueva URL de embed con autoplay garantizado
+    const targetEmbedUrl = ytVideoId
+      ? `https://www.youtube.com/embed/${ytVideoId}?autoplay=1&playsinline=1&enablejsapi=1&version=3&rel=0`
+      : track.url && track.url.includes('embed')
+      ? track.url
+      : '';
+
+    // 3. Actualizar la fuente del iframe
+    setCurrentIframeSrc(targetEmbedUrl);
+
+    // 4. Si el iframe ya está cargado y listo en el DOM, usar la API loadVideoById para cambio instantáneo
+    if (iframeLoaded && ytVideoId && iframeRef.current?.contentWindow) {
+      try {
         sendYouTubeCommand('loadVideoById', [ytVideoId, 0]);
         sendYouTubeCommand('setVolume', [Math.round(volume * 100)]);
         if (volume === 0) {
@@ -506,21 +503,16 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
         }
         sendYouTubeCommand('playVideo');
         const t1 = setTimeout(() => sendYouTubeCommand('playVideo'), 250);
-        const t2 = setTimeout(() => sendYouTubeCommand('playVideo'), 750);
-        setCurrentIframeSrc(embedUrl);
+        const t2 = setTimeout(() => sendYouTubeCommand('playVideo'), 650);
         return () => {
           clearTimeout(t1);
           clearTimeout(t2);
         };
-      } else if (track.url) {
-        sendYouTubeCommand('loadVideoByUrl', [embedUrl]);
-        sendYouTubeCommand('playVideo');
-        setCurrentIframeSrc(embedUrl);
+      } catch (err) {
+        console.warn('Error commanding iframe loadVideoById:', err);
       }
-    } else {
-      setCurrentIframeSrc(embedUrl);
     }
-  }, [ytVideoId, track.id, track.url, isYouTube, iframeLoaded, volume, embedUrl, sendYouTubeCommand]);
+  }, [ytVideoId, track.id, track.url, isYouTube, iframeLoaded, volume, sendYouTubeCommand]);
 
   // When YouTube iframe finishes loading, initialize its state
   const handleIframeLoad = () => {
@@ -760,10 +752,6 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (isYouTube) {
-                    sendYouTubeCommand('previousVideo');
-                    sendYouTubeCommand('playVideo');
-                  }
                   onPrevTrack();
                 }}
                 title={lang === 'es' ? 'Canción anterior' : 'Previous song'}
@@ -807,10 +795,6 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (isYouTube) {
-                    sendYouTubeCommand('nextVideo');
-                    sendYouTubeCommand('playVideo');
-                  }
                   onNextTrack();
                 }}
                 title={lang === 'es' ? 'Siguiente canción' : 'Next song'}

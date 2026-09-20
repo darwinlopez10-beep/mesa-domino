@@ -420,7 +420,6 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
   const songsListSectionRef = useRef<HTMLDivElement>(null);
   const modalScrollContainerRef = useRef<HTMLDivElement>(null);
   const searchBarContainerRef = useRef<HTMLDivElement>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // Active YouTube video ID
   const activeVideoId = currentTrack?.videoId || (currentTrack?.url ? extractYouTubeId(currentTrack.url) : null);
@@ -474,51 +473,6 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
     setCatalogView('recommended');
   };
 
-  // Sincronizar estado play/pause con el iframe integrado de YouTube
-  useEffect(() => {
-    if (!iframeRef.current?.contentWindow) return;
-    try {
-      if (isPlaying) {
-        iframeRef.current.contentWindow.postMessage(
-          JSON.stringify({ event: 'command', func: 'playVideo', args: '' }),
-          '*'
-        );
-      } else {
-        iframeRef.current.contentWindow.postMessage(
-          JSON.stringify({ event: 'command', func: 'pauseVideo', args: '' }),
-          '*'
-        );
-      }
-    } catch {
-      // ignore
-    }
-  }, [isPlaying]);
-
-  // Sincronizar volumen con el iframe integrado
-  useEffect(() => {
-    if (!iframeRef.current?.contentWindow) return;
-    try {
-      const vol100 = Math.round(volume * 100);
-      iframeRef.current.contentWindow.postMessage(
-        JSON.stringify({ event: 'command', func: 'setVolume', args: [vol100] }),
-        '*'
-      );
-      if (vol100 === 0) {
-        iframeRef.current.contentWindow.postMessage(
-          JSON.stringify({ event: 'command', func: 'mute', args: '' }),
-          '*'
-        );
-      } else {
-        iframeRef.current.contentWindow.postMessage(
-          JSON.stringify({ event: 'command', func: 'unMute', args: '' }),
-          '*'
-        );
-      }
-    } catch {
-      // ignore
-    }
-  }, [volume]);
-
   // Selección manual de una canción (NUNCA automática)
   const handleSelectSong = async (track: MusicTrack, playlistContext?: MusicTrack[]) => {
     let playTrack = track;
@@ -570,12 +524,16 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
       return;
     }
 
+    const effectivePlaylistContext = playlistContext
+      ? playlistContext.map((p) => (p.id === playTrack.id ? playTrack : p))
+      : undefined;
+
     // 1. Grabar automáticamente la canción seleccionada en el historial
     const updatedHistory = recordSongPlay(playTrack);
     setHistory(updatedHistory);
 
     // 2. Notificar reproducción con la canción garantizada con videoId
-    onSelectTrack(playTrack, playlistContext);
+    onSelectTrack(playTrack, effectivePlaylistContext);
     setIsVideoExpanded(true);
   };
 
@@ -1378,8 +1336,12 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
               {/* 1. MODO BÚSQUEDA */}
               {hasSearched &&
                 searchResults.map((track) => {
-                  const isThisPlaying = isPlaying && currentTrack?.id === track.id;
-                  const isThisTrackSelected = currentTrack?.id === track.id;
+                  const isThisTrackSelected = Boolean(
+                    currentTrack &&
+                      (currentTrack.id === track.id ||
+                        (Boolean(currentTrack.videoId && track.videoId) && currentTrack.videoId === track.videoId))
+                  );
+                  const isThisPlaying = isPlaying && isThisTrackSelected;
                   const inHist = history.find(
                     (h) =>
                       h.id === track.id ||
@@ -1500,8 +1462,12 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
                   const mostPlayedPlaylist = mostPlayedTracks.map((m) => m.track);
                   return mostPlayedTracks.map((item, idx) => {
                     const track = item.track;
-                    const isThisPlaying = isPlaying && currentTrack?.id === track.id;
-                    const isThisTrackSelected = currentTrack?.id === track.id;
+                    const isThisTrackSelected = Boolean(
+                      currentTrack &&
+                        (currentTrack.id === track.id ||
+                          (Boolean(currentTrack.videoId && track.videoId) && currentTrack.videoId === track.videoId))
+                    );
+                    const isThisPlaying = isPlaying && isThisTrackSelected;
 
                     // Medalla de posición
                     const rankBadge =
@@ -1661,8 +1627,12 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
                   const recentPlaylist = recentTracks.map((r) => r.track);
                   return recentTracks.map((item) => {
                     const track = item.track;
-                    const isThisPlaying = isPlaying && currentTrack?.id === track.id;
-                    const isThisTrackSelected = currentTrack?.id === track.id;
+                    const isThisTrackSelected = Boolean(
+                      currentTrack &&
+                        (currentTrack.id === track.id ||
+                          (Boolean(currentTrack.videoId && track.videoId) && currentTrack.videoId === track.videoId))
+                    );
+                    const isThisPlaying = isPlaying && isThisTrackSelected;
 
                     return (
                       <div
@@ -1781,8 +1751,12 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
               {!hasSearched &&
                 catalogView === 'recommended' &&
                 CURATED_DOMINO_YOUTUBE_TRACKS.map((track) => {
-                  const isThisPlaying = isPlaying && currentTrack?.id === track.id;
-                  const isThisTrackSelected = currentTrack?.id === track.id;
+                  const isThisTrackSelected = Boolean(
+                    currentTrack &&
+                      (currentTrack.id === track.id ||
+                        (Boolean(currentTrack.videoId && track.videoId) && currentTrack.videoId === track.videoId))
+                  );
+                  const isThisPlaying = isPlaying && isThisTrackSelected;
                   const inHist = history.find(
                     (h) =>
                       h.id === track.id ||
