@@ -332,7 +332,7 @@ export default function App() {
     notes?: string,
     winnerPlayerName?: string
   ) => {
-    if (points <= 0) return;
+    if (points < 0) return;
 
     // Calculate new running score for winner
     const updatedPlayers = players.map((p) => {

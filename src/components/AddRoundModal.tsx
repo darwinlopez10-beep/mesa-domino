@@ -60,14 +60,19 @@ export const AddRoundModal: React.FC<AddRoundModalProps> = ({
 
   if (!isOpen) return null;
 
-  const currentPoints = parseInt(pointsInput || '0', 10);
+  const hasEnteredPoints = pointsInput !== '';
+  const currentPoints = hasEnteredPoints ? parseInt(pointsInput, 10) : 0;
   const totalPointsToSave = currentPoints;
 
   const handleKeypadPress = (val: string) => {
     playTileClickSound(soundEnabled);
     triggerVibration(vibrationEnabled, 25);
     if (pointsInput.length >= 4) return;
-    if (pointsInput === '' && val === '0') return;
+    if (pointsInput === '0') {
+      if (val === '0') return;
+      setPointsInput(val);
+      return;
+    }
     setPointsInput((prev) => prev + val);
   };
 
@@ -100,7 +105,8 @@ export const AddRoundModal: React.FC<AddRoundModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (totalPointsToSave <= 0) return;
+    if (!hasEnteredPoints) return;
+    if (totalPointsToSave < 0) return;
     onSaveRound(
       selectedWinnerId,
       totalPointsToSave,
@@ -181,8 +187,12 @@ export const AddRoundModal: React.FC<AddRoundModalProps> = ({
               {lang === 'es' ? 'Puntos a anotar' : 'Points to record'}
             </div>
             <div className="flex items-center justify-center gap-1.5">
-              <span className="text-3xl sm:text-4xl font-black font-display tracking-tight text-amber-400">
-                {totalPointsToSave}
+              <span
+                className={`text-3xl sm:text-4xl font-black font-display tracking-tight transition-colors ${
+                  hasEnteredPoints ? 'text-amber-400' : 'text-stone-600'
+                }`}
+              >
+                {hasEnteredPoints ? totalPointsToSave : '0'}
               </span>
               <span className="text-sm text-stone-400 font-semibold">{t.pts}</span>
             </div>
@@ -253,16 +263,16 @@ export const AddRoundModal: React.FC<AddRoundModalProps> = ({
             <button
               id="btn-confirm-add-round"
               type="submit"
-              disabled={totalPointsToSave <= 0}
+              disabled={!hasEnteredPoints}
               className={`w-full py-3.5 px-4 rounded-xl font-bold text-base shadow-lg transition-all flex items-center justify-center gap-2 ${
-                totalPointsToSave > 0
+                hasEnteredPoints
                   ? 'bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-amber-950/40 active:scale-[0.99] cursor-pointer'
                   : 'bg-stone-800 text-stone-500 cursor-not-allowed border border-stone-700/50'
               }`}
             >
               <Plus className="w-5 h-5 stroke-[2.5]" />
               <span>
-                {totalPointsToSave > 0
+                {hasEnteredPoints
                   ? (lang === 'es' ? `Guardar Mano (+${totalPointsToSave} pts)` : `Save Hand (+${totalPointsToSave} pts)`)
                   : (lang === 'es' ? 'Ingresa los puntos para guardar' : 'Enter points to save')}
               </span>
