@@ -324,19 +324,21 @@ export default function App() {
     }));
   }, []);
 
-  // Save a new round
+  // Save a new round (supports single winner or multiple winners for tie/equal points)
   const handleSaveRound = (
-    roundWinnerId: string,
+    roundWinnerId: string | string[],
     points: number,
     reason: WinReason,
     notes?: string,
     winnerPlayerName?: string
   ) => {
     if (points < 0) return;
+    const winnerIds = Array.isArray(roundWinnerId) ? roundWinnerId : [roundWinnerId];
+    if (winnerIds.length === 0) return;
 
-    // Calculate new running score for winner
+    // Calculate new running score for winner(s)
     const updatedPlayers = players.map((p) => {
-      if (p.id === roundWinnerId) {
+      if (winnerIds.includes(p.id)) {
         return {
           ...p,
           score: p.score + points,
@@ -351,19 +353,19 @@ export default function App() {
       newSnapshot[p.id] = p.score;
     });
 
-    const newRound: Round = {
-      id: `round_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-      roundNumber: rounds.length + 1,
-      winnerId: roundWinnerId,
-      winnerPlayerName,
+    const createdRounds: Round[] = winnerIds.map((wid, idx) => ({
+      id: `round_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`,
+      roundNumber: rounds.length + idx + 1,
+      winnerId: wid,
+      winnerPlayerName: winnerIds.length === 1 ? winnerPlayerName : players.find((p) => p.id === wid)?.name,
       points,
       reason,
-      notes,
-      timestamp: Date.now(),
+      notes: notes || (winnerIds.length > 1 ? (lang === 'es' ? 'Tranca: Puntos iguales para ambos' : 'Tranca: Equal points for both') : undefined),
+      timestamp: Date.now() + idx,
       scoresSnapshot: newSnapshot,
-    };
+    }));
 
-    const newRounds = [...rounds, newRound];
+    const newRounds = [...rounds, ...createdRounds];
     setRounds(newRounds);
     setPlayers(updatedPlayers);
 
@@ -371,8 +373,9 @@ export default function App() {
     triggerVibration(isVibrationActive, [40, 20, 60]);
 
     // Check if winner reached or surpassed target score
-    const winningCandidate = updatedPlayers.find((p) => p.score >= settings.targetScore);
-    if (winningCandidate) {
+    const winningCandidates = updatedPlayers.filter((p) => p.score >= settings.targetScore);
+    if (winningCandidates.length > 0) {
+      const winningCandidate = [...winningCandidates].sort((a, b) => b.score - a.score)[0];
       setMatchOver(true);
       setWinnerId(winningCandidate.id);
       setIsVictoryOpen(true);
@@ -573,7 +576,7 @@ export default function App() {
 
   // Apply tranca points from calculator
   const handleApplyTrancaPoints = (
-    trancaWinnerId: string,
+    trancaWinnerId: string | string[],
     points: number,
     notes: string
   ) => {

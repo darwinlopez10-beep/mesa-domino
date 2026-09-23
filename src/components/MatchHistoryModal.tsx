@@ -11,9 +11,7 @@ import {
   ChevronDown,
   ChevronUp,
   BookmarkPlus,
-  User,
   Medal,
-  CheckCircle2,
   Sparkles,
   Lock,
   ShieldAlert,
@@ -143,12 +141,7 @@ export const MatchHistoryModal: React.FC<MatchHistoryModalProps> = ({
           </span>
         );
       default:
-        return (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-stone-800 text-stone-300 border border-stone-700">
-            <CheckCircle2 className="w-2.5 h-2.5" />
-            {t.reasonDomino}
-          </span>
-        );
+        return null;
     }
   };
 
@@ -626,12 +619,6 @@ export const MatchHistoryModal: React.FC<MatchHistoryModalProps> = ({
                                       </span>
                                       <div className="flex items-center gap-1.5">
                                         {getBadgeForReason(round.reason)}
-                                        {round.winnerPlayerName && (
-                                          <span className="text-[11px] text-stone-300 flex items-center gap-0.5">
-                                            <User className="w-2.5 h-2.5 text-stone-400" />
-                                            {round.winnerPlayerName}
-                                          </span>
-                                        )}
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2">

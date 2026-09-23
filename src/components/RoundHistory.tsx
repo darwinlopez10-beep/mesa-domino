@@ -1,5 +1,5 @@
 import React from 'react';
-import { RotateCcw, Trash2, Sparkles, Lock, ShieldAlert, CheckCircle2, User } from 'lucide-react';
+import { RotateCcw, Trash2, Sparkles, Lock, ShieldAlert } from 'lucide-react';
 import { PlayerScore, Round } from '../types';
 import { AppLanguage, TRANSLATIONS, formatPlayerDisplayName } from '../utils/i18n';
 
@@ -45,12 +45,7 @@ export const RoundHistory: React.FC<RoundHistoryProps> = ({
           </span>
         );
       default:
-        return (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-            <CheckCircle2 className="w-2.5 h-2.5" />
-            {t.reasonNormal}
-          </span>
-        );
+        return null;
     }
   };
 
@@ -153,22 +148,11 @@ export const RoundHistory: React.FC<RoundHistoryProps> = ({
                     <td className="py-3 px-4 border-r border-stone-800/80">
                       {team1Won ? (
                         <div className="flex items-center justify-between">
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-base font-bold text-emerald-400">
-                                +{round.points}
-                              </span>
-                              <div className="font-sans">{getBadgeForReason(round.reason)}</div>
-                            </div>
-                            {round.winnerPlayerName && (
-                              <div className="flex items-center gap-1 text-[11px] font-sans font-medium text-emerald-300/90">
-                                <User className="w-3 h-3 text-emerald-400" />
-                                <span>
-                                  {lang === 'es' ? 'Salió: ' : 'Out: '}
-                                  <strong>{formatPlayerDisplayName(round.winnerPlayerName, lang)}</strong>
-                                </span>
-                              </div>
-                            )}
+                          <div className="flex items-center gap-2">
+                            <span className="text-base font-bold text-emerald-400">
+                              +{round.points}
+                            </span>
+                            {getBadgeForReason(round.reason)}
                           </div>
                           <span className="text-sm font-bold text-stone-100">
                             {team1ScoreSnap}
@@ -186,22 +170,11 @@ export const RoundHistory: React.FC<RoundHistoryProps> = ({
                     <td className="py-3 px-4">
                       {team2Won ? (
                         <div className="flex items-center justify-between">
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-base font-bold text-amber-400">
-                                +{round.points}
-                              </span>
-                              <div className="font-sans">{getBadgeForReason(round.reason)}</div>
-                            </div>
-                            {round.winnerPlayerName && (
-                              <div className="flex items-center gap-1 text-[11px] font-sans font-medium text-amber-300/90">
-                                <User className="w-3 h-3 text-amber-400" />
-                                <span>
-                                  {lang === 'es' ? 'Salió: ' : 'Out: '}
-                                  <strong>{formatPlayerDisplayName(round.winnerPlayerName, lang)}</strong>
-                                </span>
-                              </div>
-                            )}
+                          <div className="flex items-center gap-2">
+                            <span className="text-base font-bold text-amber-400">
+                              +{round.points}
+                            </span>
+                            {getBadgeForReason(round.reason)}
                           </div>
                           <span className="text-sm font-bold text-stone-100">
                             {team2ScoreSnap}
@@ -262,27 +235,19 @@ export const RoundHistory: React.FC<RoundHistoryProps> = ({
                       {round.roundNumber}
                     </td>
                     <td className="py-3 px-4 font-sans font-semibold text-stone-200">
-                      <span className="flex flex-col">
-                        <span className="flex items-center gap-1.5">
-                          <span
-                            className="w-2 h-2 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: winnerPlayer?.color }}
-                          />
-                          {winnerPlayer?.name ? formatPlayerDisplayName(winnerPlayer.name, lang) : ''}
-                        </span>
-                        {round.winnerPlayerName && round.winnerPlayerName !== winnerPlayer?.name && (
-                          <span className="text-[11px] text-stone-400 pl-3.5">
-                            {lang === 'es' ? 'Salió: ' : 'Out: '}
-                            <strong>{formatPlayerDisplayName(round.winnerPlayerName, lang)}</strong>
-                          </span>
-                        )}
+                      <span className="flex items-center gap-1.5">
+                        <span
+                          className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: winnerPlayer?.color }}
+                        />
+                        {winnerPlayer?.name ? formatPlayerDisplayName(winnerPlayer.name, lang) : ''}
                       </span>
                     </td>
                     <td className="py-3 px-3 text-center font-bold text-amber-400">
                       +{round.points}
                     </td>
                     <td className="py-3 px-3 text-center font-sans">
-                      {getBadgeForReason(round.reason)}
+                      {getBadgeForReason(round.reason) || <span className="text-stone-600">-</span>}
                     </td>
                     {players.map((p) => (
                       <td key={p.id} className="py-3 px-3 text-right font-medium text-stone-300">
