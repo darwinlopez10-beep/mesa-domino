@@ -4,6 +4,18 @@ export type LanguageSetting = 'auto' | 'es' | 'en';
 
 export type TrancaRule = 'sum_opponent' | 'point_difference';
 
+export type AppBackgroundTheme =
+  | 'cielo-celeste-3d'
+  | 'galaxia-rubi-3d'
+  | 'mesa-esmeralda-3d'
+  | 'neon-cyberpunk-3d'
+  | 'oro-imperial-3d'
+  | 'fieltro-verde'
+  | 'madera-noble'
+  | 'noche-elegante'
+  | 'fibra-carbono'
+  | 'cielo-estrellas';
+
 export interface PlayerScore {
   id: string;
   name: string;
@@ -44,6 +56,7 @@ export interface GameSettings {
   timerDurationSeconds: number;
   keepScreenAwake?: boolean;
   languageSetting?: 'auto' | 'es' | 'en';
+  backgroundTheme?: AppBackgroundTheme;
 }
 
 export interface MatchStats {

@@ -186,6 +186,18 @@ export interface Translations {
   screenAwakeInactiveNotice: string;
   saveSettings: string;
   resetSettings: string;
+  changeBackground: string;
+  changeBackgroundDesc: string;
+  bgCieloCeleste: string;
+  bgCieloCelesteDesc: string;
+  bgGalaxiaRubi: string;
+  bgGalaxiaRubiDesc: string;
+  bgMesaEsmeralda: string;
+  bgMesaEsmeraldaDesc: string;
+  bgNeonCyberpunk: string;
+  bgNeonCyberpunkDesc: string;
+  bgOroImperial: string;
+  bgOroImperialDesc: string;
   // Victory Modal
   victoryTitle: string;
   matchChampion: string;
@@ -346,6 +358,18 @@ export const TRANSLATIONS: Record<AppLanguage, Translations> = {
     screenAwakeInactiveNotice: 'Modo normal: tu pantalla se apagará según los ajustes de tu celular',
     saveSettings: 'Guardar Ajustes',
     resetSettings: 'Restaurar Valores',
+    changeBackground: 'Cambiar Fondo',
+    changeBackgroundDesc: 'Elige un ambiente 3D con colores vivos y efectos de profundidad',
+    bgCieloCeleste: 'Cielo Celeste 3D',
+    bgCieloCelesteDesc: 'Azul cielo vibrante y luminoso con nubes esponjosas en capas 3D y estrellas brillantes con destellos luminosos.',
+    bgGalaxiaRubi: 'Galaxia Rubí 3D',
+    bgGalaxiaRubiDesc: 'Fondo rojo carmesí ardiente con nebulosas espaciales y estrellas doradas con destellos luminosos en relieve 3D.',
+    bgMesaEsmeralda: 'Mesa Esmeralda Real 3D',
+    bgMesaEsmeraldaDesc: 'Fieltro verde esmeralda vibrante con foco central suave, sombras profundas y reflejos dorados en las esquinas.',
+    bgNeonCyberpunk: 'Neón Cyberpunk 3D',
+    bgNeonCyberpunkDesc: 'Fondo púrpura y magenta con líneas de perspectiva 3D en cian neón y partículas flotantes brillantes.',
+    bgOroImperial: 'Oro Imperial 3D',
+    bgOroImperialDesc: 'Fondo negro carbón con placas geométricas en relieve 3D, vetas de mármol y líneas biseladas en oro pulido brillante.',
     // Victory Modal
     victoryTitle: '¡Victoria de la Partida!',
     matchChampion: '¡Ha ganado la partida!',
@@ -504,6 +528,18 @@ export const TRANSLATIONS: Record<AppLanguage, Translations> = {
     screenAwakeInactiveNotice: 'Normal mode: your screen will sleep according to device settings',
     saveSettings: 'Save Settings',
     resetSettings: 'Reset to Defaults',
+    changeBackground: 'Change Background',
+    changeBackgroundDesc: 'Choose a vivid 3D environment with depth and volumetric lighting',
+    bgCieloCeleste: 'Celestial Sky 3D',
+    bgCieloCelesteDesc: 'Vivid luminous sky blue with fluffy 3D layered clouds and sparkling stars with bright flares.',
+    bgGalaxiaRubi: 'Ruby Galaxy 3D',
+    bgGalaxiaRubiDesc: 'Fiery crimson & deep scarlet nebulae with embossed 3D golden stars and cosmic depth.',
+    bgMesaEsmeralda: 'Royal Emerald Table 3D',
+    bgMesaEsmeraldaDesc: 'Tournament emerald green felt with smooth spotlight, deep perimeter shadows, and gold reflections.',
+    bgNeonCyberpunk: 'Cyberpunk Neon 3D',
+    bgNeonCyberpunkDesc: 'Deep purple & magenta with 3D perspective cyber grid in neon cyan and floating glow particles.',
+    bgOroImperial: 'Imperial Gold 3D',
+    bgOroImperialDesc: 'Carbon charcoal & black marble with 3D relief geometric plates and bevels in polished bright gold.',
     // Victory Modal
     victoryTitle: 'Match Victory!',
     matchChampion: 'Won the match!',

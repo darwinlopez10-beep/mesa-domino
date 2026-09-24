@@ -1,4 +1,4 @@
-import { GameMode, GameSettings, MusicHistoryItem, MusicTrack, PastMatch, PlayerScore, Round } from '../types';
+import { AppBackgroundTheme, GameMode, GameSettings, MusicHistoryItem, MusicTrack, PastMatch, PlayerScore, Round } from '../types';
 
 const STORAGE_KEYS = {
   CURRENT_GAME: 'domino_current_game_v1',
@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
   MATCH_HISTORY: 'domino_match_history_v1',
   CUSTOM_TRACKS: 'domino_custom_tracks_v1',
   MUSIC_HISTORY: 'domino_music_history_v1',
+  BACKGROUND: 'domino_background_v1',
 };
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -23,6 +24,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   timerDurationSeconds: 25,
   keepScreenAwake: true,
   languageSetting: 'auto',
+  backgroundTheme: 'cielo-celeste-3d',
 };
 
 export interface ActiveGameState {
@@ -81,8 +83,73 @@ export function saveSettings(settings: GameSettings): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+    if (settings.backgroundTheme) {
+      localStorage.setItem(STORAGE_KEYS.BACKGROUND, settings.backgroundTheme);
+    }
   } catch {
     // Ignore storage quota errors
+  }
+}
+
+export function loadBackgroundTheme(): AppBackgroundTheme {
+  if (typeof window === 'undefined') return 'cielo-celeste-3d';
+  try {
+    const direct = localStorage.getItem(STORAGE_KEYS.BACKGROUND) as string | null;
+    if (direct) {
+      if (
+        direct === 'cielo-celeste-3d' ||
+        direct === 'galaxia-rubi-3d' ||
+        direct === 'mesa-esmeralda-3d' ||
+        direct === 'neon-cyberpunk-3d' ||
+        direct === 'oro-imperial-3d'
+      ) {
+        return direct;
+      }
+      // Backward compatibility mapping
+      if (direct === 'cielo-estrellas') return 'cielo-celeste-3d';
+      if (direct === 'fieltro-verde') return 'mesa-esmeralda-3d';
+      if (direct === 'madera-noble') return 'oro-imperial-3d';
+      if (direct === 'noche-elegante') return 'galaxia-rubi-3d';
+      if (direct === 'fibra-carbono') return 'neon-cyberpunk-3d';
+    }
+    const rawSettings = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+    if (rawSettings) {
+      const parsed = JSON.parse(rawSettings);
+      const th = parsed.backgroundTheme;
+      if (
+        th === 'cielo-celeste-3d' ||
+        th === 'galaxia-rubi-3d' ||
+        th === 'mesa-esmeralda-3d' ||
+        th === 'neon-cyberpunk-3d' ||
+        th === 'oro-imperial-3d'
+      ) {
+        return th;
+      }
+      if (th === 'cielo-estrellas') return 'cielo-celeste-3d';
+      if (th === 'fieltro-verde') return 'mesa-esmeralda-3d';
+      if (th === 'madera-noble') return 'oro-imperial-3d';
+      if (th === 'noche-elegante') return 'galaxia-rubi-3d';
+      if (th === 'fibra-carbono') return 'neon-cyberpunk-3d';
+    }
+  } catch {
+    // Fallback on error
+  }
+  return 'cielo-celeste-3d';
+}
+
+export function saveBackgroundTheme(theme: AppBackgroundTheme): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.BACKGROUND, theme);
+    // Also sync in settings object if exists
+    const rawSettings = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+    if (rawSettings) {
+      const parsed = JSON.parse(rawSettings);
+      parsed.backgroundTheme = theme;
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(parsed));
+    }
+  } catch {
+    // Ignore
   }
 }
 

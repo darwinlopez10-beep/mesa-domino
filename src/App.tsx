@@ -10,6 +10,7 @@ import { MatchHistoryModal } from './components/MatchHistoryModal';
 import { VictoryModal } from './components/VictoryModal';
 import { MusicPlayerModal, CURATED_DOMINO_YOUTUBE_TRACKS } from './components/MusicPlayerModal';
 import { MiniMusicPlayer } from './components/MiniMusicPlayer';
+import { AppBackground } from './components/AppBackground';
 import {
   SILENT_AUDIO_DATA_URI,
   syncMediaSession,
@@ -23,6 +24,7 @@ import {
   formatPlayerDisplayName,
 } from './utils/i18n';
 import {
+  AppBackgroundTheme,
   GameSettings,
   PlayerScore,
   Round,
@@ -36,6 +38,8 @@ import {
   DEFAULT_SETTINGS,
   loadSettings,
   saveSettings,
+  loadBackgroundTheme,
+  saveBackgroundTheme,
   loadActiveGame,
   saveActiveGame,
   clearActiveGame,
@@ -115,6 +119,22 @@ export default function App() {
     return resolveActiveLanguage(currentSettings.languageSetting);
   });
   const t = TRANSLATIONS[lang];
+
+  // Background Theme state with immediate localStorage persistence
+  const [backgroundTheme, setBackgroundTheme] = useState<AppBackgroundTheme>(() => {
+    const currentSettings = loadSettings();
+    return currentSettings.backgroundTheme || loadBackgroundTheme();
+  });
+
+  const handleSelectBackgroundTheme = useCallback((theme: AppBackgroundTheme) => {
+    setBackgroundTheme(theme);
+    saveBackgroundTheme(theme);
+    setSettings((prev) => {
+      const updated = { ...prev, backgroundTheme: theme };
+      saveSettings(updated);
+      return updated;
+    });
+  }, []);
 
   // Synchronize document lang attribute for accessibility and SEO
   useEffect(() => {
@@ -324,21 +344,19 @@ export default function App() {
     }));
   }, []);
 
-  // Save a new round (supports single winner or multiple winners for tie/equal points)
+  // Save a new round
   const handleSaveRound = (
-    roundWinnerId: string | string[],
+    roundWinnerId: string,
     points: number,
     reason: WinReason,
     notes?: string,
     winnerPlayerName?: string
   ) => {
     if (points < 0) return;
-    const winnerIds = Array.isArray(roundWinnerId) ? roundWinnerId : [roundWinnerId];
-    if (winnerIds.length === 0) return;
 
-    // Calculate new running score for winner(s)
+    // Calculate new running score for winner
     const updatedPlayers = players.map((p) => {
-      if (winnerIds.includes(p.id)) {
+      if (p.id === roundWinnerId) {
         return {
           ...p,
           score: p.score + points,
@@ -353,19 +371,19 @@ export default function App() {
       newSnapshot[p.id] = p.score;
     });
 
-    const createdRounds: Round[] = winnerIds.map((wid, idx) => ({
-      id: `round_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`,
-      roundNumber: rounds.length + idx + 1,
-      winnerId: wid,
-      winnerPlayerName: winnerIds.length === 1 ? winnerPlayerName : players.find((p) => p.id === wid)?.name,
+    const newRound: Round = {
+      id: `round_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      roundNumber: rounds.length + 1,
+      winnerId: roundWinnerId,
+      winnerPlayerName,
       points,
       reason,
-      notes: notes || (winnerIds.length > 1 ? (lang === 'es' ? 'Tranca: Puntos iguales para ambos' : 'Tranca: Equal points for both') : undefined),
-      timestamp: Date.now() + idx,
+      notes,
+      timestamp: Date.now(),
       scoresSnapshot: newSnapshot,
-    }));
+    };
 
-    const newRounds = [...rounds, ...createdRounds];
+    const newRounds = [...rounds, newRound];
     setRounds(newRounds);
     setPlayers(updatedPlayers);
 
@@ -373,9 +391,8 @@ export default function App() {
     triggerVibration(isVibrationActive, [40, 20, 60]);
 
     // Check if winner reached or surpassed target score
-    const winningCandidates = updatedPlayers.filter((p) => p.score >= settings.targetScore);
-    if (winningCandidates.length > 0) {
-      const winningCandidate = [...winningCandidates].sort((a, b) => b.score - a.score)[0];
+    const winningCandidate = updatedPlayers.find((p) => p.score >= settings.targetScore);
+    if (winningCandidate) {
       setMatchOver(true);
       setWinnerId(winningCandidate.id);
       setIsVictoryOpen(true);
@@ -576,7 +593,7 @@ export default function App() {
 
   // Apply tranca points from calculator
   const handleApplyTrancaPoints = (
-    trancaWinnerId: string | string[],
+    trancaWinnerId: string,
     points: number,
     notes: string
   ) => {
@@ -586,6 +603,10 @@ export default function App() {
   // Save modified settings
   const handleSaveSettings = (newSettings: GameSettings, shouldResetGame: boolean) => {
     setSettings(newSettings);
+    if (newSettings.backgroundTheme) {
+      setBackgroundTheme(newSettings.backgroundTheme);
+      saveBackgroundTheme(newSettings.backgroundTheme);
+    }
 
     const modeChanged = newSettings.gameMode !== settings.gameMode;
     const countChanged =
@@ -970,7 +991,10 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-900 text-stone-100 flex flex-col font-sans selection:bg-amber-500 selection:text-stone-950">
+    <div className="relative min-h-screen text-stone-100 flex flex-col font-sans selection:bg-amber-500 selection:text-stone-950">
+      {/* Capa de fondo con 5 temas visuales y overlay de alto contraste */}
+      <AppBackground theme={backgroundTheme} />
+
       {/* Top Header */}
       <ScoreHeader
         targetScore={settings.targetScore}
@@ -1046,7 +1070,7 @@ export default function App() {
       )}
 
       {/* Bottom Sticky Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-30 bg-stone-900/95 backdrop-blur-md border-t border-stone-800 px-2 sm:px-4 py-2 flex items-center justify-around sm:justify-center sm:gap-10 shadow-2xl">
+      <nav className="fixed bottom-0 left-0 right-0 z-30 bg-slate-950/75 backdrop-blur-md border-t border-slate-700/60 px-2 sm:px-4 py-2 flex items-center justify-around sm:justify-center sm:gap-10 shadow-2xl">
         <button
           id="btn-bottom-tranca-calc"
           onClick={() => setIsTrancaCalcOpen(true)}
@@ -1156,6 +1180,8 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         currentSettings={settings}
+        currentBackgroundTheme={backgroundTheme}
+        onSelectBackgroundTheme={handleSelectBackgroundTheme}
         onSaveSettings={handleSaveSettings}
         lang={lang}
         onLanguageChange={handleLanguageChange}

@@ -72,8 +72,8 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
               id={`player-card-${player.id}`}
               className={`relative overflow-hidden rounded-2xl border transition-all duration-200 flex flex-col justify-between ${
                 isLeader
-                  ? 'bg-stone-900 border-amber-500/60 shadow-xl shadow-amber-950/25 ring-1 ring-amber-500/40'
-                  : 'bg-stone-900 border-stone-800 shadow-lg'
+                  ? 'bg-slate-900/80 backdrop-blur-md border-amber-400/80 shadow-2xl shadow-amber-950/40 ring-1 ring-amber-400/50'
+                  : 'bg-slate-950/75 backdrop-blur-md border-slate-700/60 shadow-xl'
               }`}
             >
               {/* Top team color banner line */}
@@ -83,7 +83,7 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
               />
 
               {/* Unified Header: Player Name */}
-              <div className="px-3 py-2.5 sm:px-4 sm:py-3.5 bg-stone-950/40 border-b border-stone-800/80">
+              <div className="px-3 py-2.5 sm:px-4 sm:py-3.5 bg-slate-900/50 border-b border-slate-700/50">
                 {editingPlayerId === player.id ? (
                   <div className="w-full">
                     {(() => {

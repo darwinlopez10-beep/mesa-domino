@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { X, Settings, Users, Target, Shield, Sparkles, Volume2, Check, Globe, Sun } from 'lucide-react';
-import { GameMode, GameSettings, LanguageSetting, TrancaRule } from '../types';
+import React, { useState, useEffect } from 'react';
+import { X, Settings, Users, Target, Shield, Sparkles, Volume2, Check, Globe, Sun, Palette } from 'lucide-react';
+import { AppBackgroundTheme, GameMode, GameSettings, LanguageSetting, TrancaRule } from '../types';
 import { AppLanguage, TRANSLATIONS, resolveActiveLanguage, saveLanguageSetting } from '../utils/i18n';
+import { BACKGROUND_THEME_OPTIONS, BackgroundThumbnailCard } from './AppBackground';
+import { loadBackgroundTheme, saveBackgroundTheme } from '../utils/storage';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -9,6 +11,8 @@ interface SettingsModalProps {
   currentSettings: GameSettings;
   lang?: AppLanguage;
   activeLang?: AppLanguage;
+  currentBackgroundTheme?: AppBackgroundTheme;
+  onSelectBackgroundTheme?: (theme: AppBackgroundTheme) => void;
   onSaveSettings: (newSettings: GameSettings, shouldResetGame: boolean) => void;
   onLanguageChange?: (newLang: AppLanguage) => void;
 }
@@ -19,6 +23,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   currentSettings,
   lang,
   activeLang,
+  currentBackgroundTheme,
+  onSelectBackgroundTheme,
   onSaveSettings,
   onLanguageChange,
 }) => {
@@ -28,6 +34,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   
   const effectiveLang: AppLanguage = resolveActiveLanguage(languageSetting);
   const t = TRANSLATIONS[effectiveLang];
+
+  const [selectedBackgroundTheme, setSelectedBackgroundTheme] = useState<AppBackgroundTheme>(() => {
+    return currentBackgroundTheme || currentSettings.backgroundTheme || loadBackgroundTheme();
+  });
+
+  useEffect(() => {
+    if (currentBackgroundTheme) {
+      setSelectedBackgroundTheme(currentBackgroundTheme);
+    }
+  }, [currentBackgroundTheme]);
 
   const [targetScore, setTargetScore] = useState<number>(currentSettings.targetScore);
   const [customTarget, setCustomTarget] = useState<string>('');
@@ -99,8 +115,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  const handleSelectBackground = (theme: AppBackgroundTheme) => {
+    setSelectedBackgroundTheme(theme);
+    saveBackgroundTheme(theme);
+    if (onSelectBackgroundTheme) {
+      onSelectBackgroundTheme(theme);
+    }
+  };
+
   const handleSave = (resetGame: boolean) => {
     saveLanguageSetting(languageSetting);
+    saveBackgroundTheme(selectedBackgroundTheme);
     const resolved = resolveActiveLanguage(languageSetting);
     if (onLanguageChange) {
       onLanguageChange(resolved);
@@ -133,6 +158,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       timerDurationSeconds,
       keepScreenAwake,
       languageSetting,
+      backgroundTheme: selectedBackgroundTheme,
     };
 
     onSaveSettings(newSettings, resetGame);
@@ -142,11 +168,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-2 sm:p-4 pt-1 sm:pt-2 md:pt-3 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
       <div
-        className="w-full max-w-lg bg-stone-900 border border-stone-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] sm:max-h-[94vh] mt-0.5 sm:mt-1"
+        className="w-full max-w-lg bg-slate-950/90 backdrop-blur-xl border border-slate-700/70 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] sm:max-h-[94vh] mt-0.5 sm:mt-1"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-3.5 sm:px-4 py-1.5 sm:py-2 border-b border-stone-800 bg-stone-850 flex-shrink-0">
+        <div className="flex items-center justify-between px-3.5 sm:px-4 py-2 border-b border-slate-800 bg-slate-900/80 flex-shrink-0">
           <div className="flex items-center gap-2">
             <div className="p-1 rounded-md bg-amber-500/10 text-amber-400">
               <Settings className="w-4 h-4" />
@@ -224,6 +250,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 ? 'Idioma configurado manualmente en Español.'
                 : 'Language manually configured to English.'}
             </p>
+          </div>
+
+          {/* Cambiar Fondo con Miniaturas Visuales */}
+          <div className="p-3 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-750/80 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-2.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                <Palette className="w-4 h-4 text-amber-400" />
+                <span>{t.changeBackground}</span>
+              </label>
+              <span className="text-[11px] text-slate-300 font-medium">
+                {t.changeBackgroundDesc}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5">
+              {BACKGROUND_THEME_OPTIONS.map((opt) => (
+                <div
+                  key={opt.id}
+                  className="last:col-span-2 sm:last:col-span-1"
+                >
+                  <BackgroundThumbnailCard
+                    id={opt.id}
+                    title={t[opt.titleKey as keyof typeof t] as string}
+                    description={t[opt.descKey as keyof typeof t] as string}
+                    isSelected={selectedBackgroundTheme === opt.id}
+                    onSelect={() => handleSelectBackground(opt.id)}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Target Score */}

@@ -50,9 +50,9 @@ export const RoundHistory: React.FC<RoundHistoryProps> = ({
   };
 
   return (
-    <section className="bg-stone-850/90 rounded-2xl border border-stone-800 shadow-xl overflow-hidden">
+    <section className="bg-slate-950/75 backdrop-blur-md rounded-2xl border border-slate-700/60 shadow-2xl overflow-hidden">
       {/* Header of Round History */}
-      <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-stone-800 bg-stone-900/60">
+      <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-slate-700/60 bg-slate-900/60">
         <div className="flex items-center gap-2">
           <h3 className="font-bold text-stone-100 font-display text-sm sm:text-base">
             {t.roundsHistory}
