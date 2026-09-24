@@ -95,38 +95,12 @@ export const RoundHistory: React.FC<RoundHistoryProps> = ({
         /* Classic 2-column domino notebook layout (Nosotros vs Ellos) */
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-stone-800 bg-stone-900/40 text-stone-400 text-xs">
-                <th className="py-2.5 px-3 sm:px-4 w-12 text-center font-bold">#</th>
-                <th
-                  className="py-2.5 px-3 sm:px-4 font-bold border-r border-stone-800/80"
-                  style={{ color: players[0].color }}
-                >
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-sm font-extrabold tracking-tight break-words line-clamp-2 leading-tight">
-                      {formatPlayerDisplayName(players[0].name, lang)}
-                    </span>
-                    <span className="text-[11px] sm:text-xs opacity-75 font-normal flex-shrink-0">
-                      {lang === 'es' ? 'Acumulado' : 'Total'}
-                    </span>
-                  </div>
-                </th>
-                <th
-                  className="py-2.5 px-3 sm:px-4 font-bold"
-                  style={{ color: players[1].color }}
-                >
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-sm font-extrabold tracking-tight break-words line-clamp-2 leading-tight">
-                      {formatPlayerDisplayName(players[1].name, lang)}
-                    </span>
-                    <span className="text-[11px] sm:text-xs opacity-75 font-normal flex-shrink-0">
-                      {lang === 'es' ? 'Acumulado' : 'Total'}
-                    </span>
-                  </div>
-                </th>
-                <th className="py-2.5 px-3 w-10 text-center font-normal text-stone-500"></th>
-              </tr>
-            </thead>
+            <colgroup>
+              <col className="w-10 sm:w-12" />
+              <col />
+              <col />
+              <col className="w-8 sm:w-10" />
+            </colgroup>
             <tbody className="divide-y divide-stone-800/60 font-mono">
               {rounds.map((round) => {
                 const team1Won = round.winnerId === players[0].id;
