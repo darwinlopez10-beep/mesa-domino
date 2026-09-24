@@ -29,9 +29,9 @@ export const BACKGROUND_THEME_OPTIONS: BackgroundThemeOption[] = [
     descKey: 'bgNeonCyberpunkDesc',
   },
   {
-    id: 'oro-imperial-3d',
-    titleKey: 'bgOroImperial',
-    descKey: 'bgOroImperialDesc',
+    id: 'ondas-azul-lavanda',
+    titleKey: 'bgOndasAzulLavanda',
+    descKey: 'bgOndasAzulLavandaDesc',
   },
 ];
 
@@ -42,10 +42,10 @@ interface AppBackgroundProps {
 export const AppBackground: React.FC<AppBackgroundProps> = ({ theme }) => {
   // Normalize theme with backward-compatibility
   const resolvedTheme: AppBackgroundTheme =
-    theme === 'fieltro-verde'
+    theme === 'oro-imperial-3d' || theme === 'madera-noble'
+      ? 'ondas-azul-lavanda'
+      : theme === 'fieltro-verde'
       ? 'mesa-esmeralda-3d'
-      : theme === 'madera-noble'
-      ? 'oro-imperial-3d'
       : theme === 'noche-elegante'
       ? 'galaxia-rubi-3d'
       : theme === 'fibra-carbono'
@@ -59,12 +59,14 @@ export const AppBackground: React.FC<AppBackgroundProps> = ({ theme }) => {
       aria-hidden="true"
       className="fixed inset-0 pointer-events-none -z-10 overflow-hidden select-none transition-all duration-700"
     >
-      {/* 1. Capas visuales 3D específicas de cada tema */}
+      {/* 1. Capas visuales específicas de cada tema */}
       {resolvedTheme === 'cielo-celeste-3d' && <CieloCeleste3DBackground />}
       {resolvedTheme === 'galaxia-rubi-3d' && <GalaxiaRubi3DBackground />}
       {resolvedTheme === 'mesa-esmeralda-3d' && <MesaEsmeralda3DBackground />}
       {resolvedTheme === 'neon-cyberpunk-3d' && <NeonCyberpunk3DBackground />}
-      {resolvedTheme === 'oro-imperial-3d' && <OroImperial3DBackground />}
+      {(resolvedTheme === 'ondas-azul-lavanda' || resolvedTheme === 'oro-imperial-3d') && (
+        <OndasAzulLavandaBackground />
+      )}
 
       {/* 2. Capa transparente equilibrada: preserva 100% los colores vivos y el impacto 3D */}
       <div className="absolute inset-0 bg-slate-950/30 pointer-events-none" />
@@ -583,45 +585,54 @@ export const NeonCyberpunk3DBackground: React.FC<{ isThumbnail?: boolean }> = ({
 };
 
 /* =========================================================================
- * 5. ORO IMPERIAL 3D
- * Fondo negro carbón con placas geométricas en relieve 3D, vetas de mármol negro y líneas biseladas en oro pulido
+ * 5. ONDAS SUAVES AZUL Y LAVANDA
+ * Estilo moderno y minimalista de capas abstractas fluidas.
+ * Tonos: azul cielo vibrante, aciano y toques suaves de lavanda/púrpura claro en la parte superior,
+ * centro luminoso en azul hielo/cian pastel, y capas inferiores en azul ultramar profundo.
+ * Sombreados suaves y elegantes entre curvas superpuestas para profundidad 3D limpia y relajante.
  * ========================================================================= */
-export const OroImperial3DBackground: React.FC<{ isThumbnail?: boolean }> = ({ isThumbnail }) => {
+export const OndasAzulLavandaBackground: React.FC<{ isThumbnail?: boolean }> = ({ isThumbnail }) => {
   return (
-    <div className="absolute inset-0 overflow-hidden bg-[#08080a]">
-      {/* Base carbón obsidiana profundo con iluminación angular */}
+    <div className="absolute inset-0 overflow-hidden bg-[#070e26]">
+      {/* Fondo base fluido: gradiente vertical armonizado */}
       <div
         className="absolute inset-0"
         style={{
-          background: 'linear-gradient(145deg, #141418 0%, #0d0d10 45%, #050506 100%)',
-        }}
-      />
-
-      {/* Vetas orgánicas de mármol negro con minerales dorados */}
-      <div
-        className="absolute inset-0 opacity-20"
-        style={{
-          backgroundImage: `
-            repeating-linear-gradient(125deg, 
-              transparent 0px, 
-              transparent 70px, 
-              rgba(245, 158, 11, 0.25) 72px, 
-              rgba(254, 240, 138, 0.35) 73px, 
-              transparent 76px, 
-              transparent 160px
-            ),
-            repeating-linear-gradient(65deg, 
-              transparent 0px, 
-              transparent 90px, 
-              rgba(255, 255, 255, 0.15) 92px, 
-              transparent 94px, 
-              transparent 210px
+          background: `
+            linear-gradient(175deg, 
+              #7c3aed 0%, 
+              #4f46e5 14%, 
+              #2563eb 32%, 
+              #0284c7 50%, 
+              #0369a1 68%, 
+              #0f172a 88%, 
+              #070e26 100%
             )
           `,
         }}
       />
 
-      {/* SVG Placas Geométricas en Relieve 3D con Bisel de Oro Pulido y Sombras Marcadas */}
+      {/* Resplandor superior suave en tonos lavanda / púrpura etéreo */}
+      <div
+        className="absolute -top-12 left-1/4 w-[300px] sm:w-[550px] h-[250px] sm:h-[400px] rounded-full pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(ellipse at center, rgba(192, 132, 252, 0.45) 0%, rgba(129, 140, 248, 0.25) 45%, transparent 75%)',
+          filter: isThumbnail ? 'blur(16px)' : 'blur(40px)',
+        }}
+      />
+
+      {/* Centro luminoso en azul hielo / cian pastel */}
+      <div
+        className="absolute top-[38%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[620px] h-[220px] sm:h-[420px] rounded-full pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(ellipse at center, rgba(207, 250, 254, 0.6) 0%, rgba(125, 211, 252, 0.38) 40%, rgba(56, 189, 248, 0.15) 65%, transparent 80%)',
+          filter: isThumbnail ? 'blur(18px)' : 'blur(45px)',
+        }}
+      />
+
+      {/* SVG Capas Fluidas de Ondas Curvadas Superpuestas con Sombreado 3D Suave */}
       <svg
         className="absolute inset-0 w-full h-full pointer-events-none"
         viewBox="0 0 400 600"
@@ -629,92 +640,124 @@ export const OroImperial3DBackground: React.FC<{ isThumbnail?: boolean }> = ({ i
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
-          {/* Gradiente de Oro Pulido Imperial */}
-          <linearGradient id="imperialGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#ffffff" />
-            <stop offset="25%" stopColor="#fef08a" />
-            <stop offset="50%" stopColor="#f59e0b" />
-            <stop offset="75%" stopColor="#b45309" />
-            <stop offset="100%" stopColor="#78350f" />
-          </linearGradient>
-
-          {/* Gradiente placa de carbón con relieve */}
-          <linearGradient id="carbonPlateGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#27272a" />
-            <stop offset="60%" stopColor="#18181b" />
-            <stop offset="100%" stopColor="#09090b" />
-          </linearGradient>
-
-          {/* Sombra 3D marcada y profunda para placas geométricas */}
-          <filter id="plate3DShadow" x="-20%" y="-20%" width="150%" height="150%">
-            <feDropShadow dx="0" dy="14" stdDeviation="14" floodColor="#000000" floodOpacity="0.95" />
-            <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="#fbbf24" floodOpacity="0.3" />
+          {/* Sombreado suave y elegante entre curvas superpuestas */}
+          <filter id="waveShadow1" x="-20%" y="-20%" width="140%" height="150%">
+            <feDropShadow dx="0" dy="8" stdDeviation="10" floodColor="#091436" floodOpacity="0.55" />
           </filter>
+          <filter id="waveShadow2" x="-20%" y="-20%" width="140%" height="150%">
+            <feDropShadow dx="0" dy="12" stdDeviation="14" floodColor="#060c20" floodOpacity="0.65" />
+          </filter>
+          <filter id="waveShadow3" x="-20%" y="-20%" width="140%" height="150%">
+            <feDropShadow dx="0" dy="14" stdDeviation="16" floodColor="#020617" floodOpacity="0.75" />
+          </filter>
+
+          {/* Gradiente 1: Lavanda a Azul Aciano suave (Capa Superior) */}
+          <linearGradient id="waveGradTop" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#c084fc" stopOpacity="0.9" />
+            <stop offset="45%" stopColor="#818cf8" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.8" />
+          </linearGradient>
+
+          {/* Gradiente 2: Azul Aciano a Azul Cielo Vibrante */}
+          <linearGradient id="waveGradMidTop" x1="0%" y1="0%" x2="100%" y2="80%">
+            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.9" />
+            <stop offset="50%" stopColor="#60a5fa" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="#818cf8" stopOpacity="0.75" />
+          </linearGradient>
+
+          {/* Gradiente 3: Centro Luminoso Azul Hielo / Cian Pastel */}
+          <linearGradient id="waveGradLuminous" x1="20%" y1="0%" x2="80%" y2="100%">
+            <stop offset="0%" stopColor="#e0f2fe" stopOpacity="0.95" />
+            <stop offset="35%" stopColor="#bae6fd" stopOpacity="0.9" />
+            <stop offset="70%" stopColor="#38bdf8" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="#0284c7" stopOpacity="0.8" />
+          </linearGradient>
+
+          {/* Gradiente 4: Azul Océano / Azul Cobalto */}
+          <linearGradient id="waveGradMidBottom" x1="10%" y1="0%" x2="90%" y2="100%">
+            <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.95" />
+            <stop offset="40%" stopColor="#0284c7" stopOpacity="0.92" />
+            <stop offset="80%" stopColor="#1d4ed8" stopOpacity="0.92" />
+            <stop offset="100%" stopColor="#1e40af" stopOpacity="0.96" />
+          </linearGradient>
+
+          {/* Gradiente 5: Azul Ultramar Profundo a Abismo Noche */}
+          <linearGradient id="waveGradDeep" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#1e40af" stopOpacity="0.98" />
+            <stop offset="40%" stopColor="#1e3a8a" stopOpacity="0.98" />
+            <stop offset="75%" stopColor="#172554" stopOpacity="1" />
+            <stop offset="100%" stopColor="#070e26" stopOpacity="1" />
+          </linearGradient>
         </defs>
 
-        {/* Placas hexagonales / chevron en relieve 3D */}
-        <g filter="url(#plate3DShadow)">
-          {/* Placa superior izquierda */}
-          <polygon
-            points="-20,-20 180,-20 220,90 20,90"
-            fill="url(#carbonPlateGrad)"
-            stroke="url(#imperialGoldGrad)"
-            strokeWidth="3.5"
-          />
-
-          {/* Placa superior derecha con corte biselado */}
-          <polygon
-            points="240,-20 420,-20 420,130 280,130"
-            fill="url(#carbonPlateGrad)"
-            stroke="url(#imperialGoldGrad)"
-            strokeWidth="3.5"
-          />
-
-          {/* Gran placa central geométrica 3D */}
-          <polygon
-            points="40,160 360,160 320,380 80,380"
-            fill="url(#carbonPlateGrad)"
-            stroke="url(#imperialGoldGrad)"
-            strokeWidth="4"
-          />
-
-          {/* Detalle interno de placa central */}
-          <polygon
-            points="70,185 330,185 300,355 100,355"
-            fill="none"
-            stroke="url(#imperialGoldGrad)"
-            strokeWidth="1.5"
-            strokeDasharray="8,4"
-            opacity="0.75"
-          />
-
-          {/* Placa inferior con diamante y líneas biseladas */}
-          <polygon
-            points="-20,440 180,440 220,620 -20,620"
-            fill="url(#carbonPlateGrad)"
-            stroke="url(#imperialGoldGrad)"
-            strokeWidth="3.5"
-          />
-
-          <polygon
-            points="240,440 420,440 420,620 200,620"
-            fill="url(#carbonPlateGrad)"
-            stroke="url(#imperialGoldGrad)"
-            strokeWidth="3.5"
+        {/* Capa de Onda 1 (Superior Izquierda: Cintas de Lavanda y Aciano) */}
+        <g filter="url(#waveShadow1)">
+          <path
+            d="M -30,-20 L 430,-20 L 430,95 C 330,140 240,70 140,115 C 60,150 10,130 -30,155 Z"
+            fill="url(#waveGradTop)"
           />
         </g>
+
+        {/* Capa de Onda 2 (Superior a Media: Transición hacia Azul Cielo) */}
+        <g filter="url(#waveShadow1)">
+          <path
+            d="M -30,-20 L 430,-20 L 430,175 C 340,145 270,225 180,205 C 90,185 20,240 -30,220 Z"
+            fill="url(#waveGradMidTop)"
+          />
+        </g>
+
+        {/* Capa de Onda 3 (Centro Luminoso: Cresta fluida en Azul Hielo / Cian Pastel) */}
+        <g filter="url(#waveShadow2)">
+          <path
+            d="M -30,220 C 40,245 110,195 200,235 C 290,275 350,220 430,250 L 430,380 C 330,340 250,400 150,360 C 60,325 10,355 -30,340 Z"
+            fill="url(#waveGradLuminous)"
+          />
+        </g>
+
+        {/* Capa de Onda 4 (Media Baja: Azul Cobalto y Ultramar en abanico) */}
+        <g filter="url(#waveShadow2)">
+          <path
+            d="M -30,335 C 50,365 140,320 230,365 C 320,410 370,360 430,395 L 430,510 C 330,470 230,530 130,490 C 40,455 0,480 -30,475 Z"
+            fill="url(#waveGradMidBottom)"
+          />
+        </g>
+
+        {/* Capa de Onda 5 (Base: Azul Ultramar Profundo / Abismo Noche) */}
+        <g filter="url(#waveShadow3)">
+          <path
+            d="M -30,470 C 50,495 140,460 230,495 C 320,530 360,490 430,515 L 430,620 L -30,620 Z"
+            fill="url(#waveGradDeep)"
+          />
+        </g>
+
+        {/* Línea de acento luminoso sutil sobre la cresta central */}
+        <path
+          d="M -30,220 C 40,245 110,195 200,235 C 290,275 350,220 430,250"
+          fill="none"
+          stroke="#ffffff"
+          strokeWidth="1.5"
+          strokeOpacity="0.45"
+        />
       </svg>
 
-      {/* Resplandor cálido de lujo en el centro */}
+      {/* Partículas de luz sutil flotantes */}
       <div
-        className="absolute inset-0 pointer-events-none"
+        className="absolute inset-0 opacity-25 pointer-events-none"
         style={{
-          background: 'radial-gradient(circle at 50% 45%, rgba(245, 158, 11, 0.16) 0%, transparent 60%)',
+          backgroundImage: `
+            radial-gradient(circle at 25% 30%, rgba(255, 255, 255, 0.8) 1px, transparent 1px),
+            radial-gradient(circle at 75% 45%, rgba(207, 250, 254, 0.9) 1.5px, transparent 1.5px),
+            radial-gradient(circle at 40% 70%, rgba(192, 132, 252, 0.8) 1px, transparent 1px)
+          `,
+          backgroundSize: '160px 160px, 220px 220px, 190px 190px',
         }}
       />
     </div>
   );
 };
+
+// Retrocompatibility alias
+export const OroImperial3DBackground = OndasAzulLavandaBackground;
 
 /* =========================================================================
  * COMPONENTE THUMBNAIL INTERACTIVO PARA LA SECCIÓN DE CONFIGURACIÓN
@@ -751,7 +794,9 @@ export const BackgroundThumbnailCard: React.FC<BackgroundThumbnailCardProps> = (
         {id === 'galaxia-rubi-3d' && <GalaxiaRubi3DBackground isThumbnail />}
         {id === 'mesa-esmeralda-3d' && <MesaEsmeralda3DBackground isThumbnail />}
         {id === 'neon-cyberpunk-3d' && <NeonCyberpunk3DBackground isThumbnail />}
-        {id === 'oro-imperial-3d' && <OroImperial3DBackground isThumbnail />}
+        {(id === 'ondas-azul-lavanda' || id === 'oro-imperial-3d') && (
+          <OndasAzulLavandaBackground isThumbnail />
+        )}
 
         {/* Capa ligera de contraste */}
         <div className="absolute inset-0 bg-slate-950/25 pointer-events-none" />

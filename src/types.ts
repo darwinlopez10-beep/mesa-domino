@@ -9,6 +9,7 @@ export type AppBackgroundTheme =
   | 'galaxia-rubi-3d'
   | 'mesa-esmeralda-3d'
   | 'neon-cyberpunk-3d'
+  | 'ondas-azul-lavanda'
   | 'oro-imperial-3d'
   | 'fieltro-verde'
   | 'madera-noble'

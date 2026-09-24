@@ -101,14 +101,15 @@ export function loadBackgroundTheme(): AppBackgroundTheme {
         direct === 'galaxia-rubi-3d' ||
         direct === 'mesa-esmeralda-3d' ||
         direct === 'neon-cyberpunk-3d' ||
-        direct === 'oro-imperial-3d'
+        direct === 'ondas-azul-lavanda'
       ) {
         return direct;
       }
       // Backward compatibility mapping
+      if (direct === 'oro-imperial-3d') return 'ondas-azul-lavanda';
       if (direct === 'cielo-estrellas') return 'cielo-celeste-3d';
       if (direct === 'fieltro-verde') return 'mesa-esmeralda-3d';
-      if (direct === 'madera-noble') return 'oro-imperial-3d';
+      if (direct === 'madera-noble') return 'ondas-azul-lavanda';
       if (direct === 'noche-elegante') return 'galaxia-rubi-3d';
       if (direct === 'fibra-carbono') return 'neon-cyberpunk-3d';
     }
@@ -121,13 +122,14 @@ export function loadBackgroundTheme(): AppBackgroundTheme {
         th === 'galaxia-rubi-3d' ||
         th === 'mesa-esmeralda-3d' ||
         th === 'neon-cyberpunk-3d' ||
-        th === 'oro-imperial-3d'
+        th === 'ondas-azul-lavanda'
       ) {
         return th;
       }
+      if (th === 'oro-imperial-3d') return 'ondas-azul-lavanda';
       if (th === 'cielo-estrellas') return 'cielo-celeste-3d';
       if (th === 'fieltro-verde') return 'mesa-esmeralda-3d';
-      if (th === 'madera-noble') return 'oro-imperial-3d';
+      if (th === 'madera-noble') return 'ondas-azul-lavanda';
       if (th === 'noche-elegante') return 'galaxia-rubi-3d';
       if (th === 'fibra-carbono') return 'neon-cyberpunk-3d';
     }

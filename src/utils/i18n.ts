@@ -196,8 +196,10 @@ export interface Translations {
   bgMesaEsmeraldaDesc: string;
   bgNeonCyberpunk: string;
   bgNeonCyberpunkDesc: string;
-  bgOroImperial: string;
-  bgOroImperialDesc: string;
+  bgOndasAzulLavanda: string;
+  bgOndasAzulLavandaDesc: string;
+  bgOroImperial?: string;
+  bgOroImperialDesc?: string;
   // Victory Modal
   victoryTitle: string;
   matchChampion: string;
@@ -368,8 +370,10 @@ export const TRANSLATIONS: Record<AppLanguage, Translations> = {
     bgMesaEsmeraldaDesc: 'Fieltro verde esmeralda vibrante con foco central suave, sombras profundas y reflejos dorados en las esquinas.',
     bgNeonCyberpunk: 'Neón Cyberpunk 3D',
     bgNeonCyberpunkDesc: 'Fondo púrpura y magenta con líneas de perspectiva 3D en cian neón y partículas flotantes brillantes.',
-    bgOroImperial: 'Oro Imperial 3D',
-    bgOroImperialDesc: 'Fondo negro carbón con placas geométricas en relieve 3D, vetas de mármol y líneas biseladas en oro pulido brillante.',
+    bgOndasAzulLavanda: 'Ondas Suaves Azul y Lavanda',
+    bgOndasAzulLavandaDesc: 'Degradado fluido con capas de ondas curvadas en azul cielo, lavanda y azul ultramar profundo con efecto 3D relajante.',
+    bgOroImperial: 'Ondas Suaves Azul y Lavanda',
+    bgOroImperialDesc: 'Degradado fluido con capas de ondas curvadas en azul cielo, lavanda y azul ultramar profundo con efecto 3D relajante.',
     // Victory Modal
     victoryTitle: '¡Victoria de la Partida!',
     matchChampion: '¡Ha ganado la partida!',
@@ -538,8 +542,10 @@ export const TRANSLATIONS: Record<AppLanguage, Translations> = {
     bgMesaEsmeraldaDesc: 'Tournament emerald green felt with smooth spotlight, deep perimeter shadows, and gold reflections.',
     bgNeonCyberpunk: 'Cyberpunk Neon 3D',
     bgNeonCyberpunkDesc: 'Deep purple & magenta with 3D perspective cyber grid in neon cyan and floating glow particles.',
-    bgOroImperial: 'Imperial Gold 3D',
-    bgOroImperialDesc: 'Carbon charcoal & black marble with 3D relief geometric plates and bevels in polished bright gold.',
+    bgOndasAzulLavanda: 'Soft Blue & Lavender Waves',
+    bgOndasAzulLavandaDesc: 'Fluid gradient with layered curved waves in sky blue, lavender, and deep ultramarine with calming 3D depth.',
+    bgOroImperial: 'Soft Blue & Lavender Waves',
+    bgOroImperialDesc: 'Fluid gradient with layered curved waves in sky blue, lavender, and deep ultramarine with calming 3D depth.',
     // Victory Modal
     victoryTitle: 'Match Victory!',
     matchChampion: 'Won the match!',
