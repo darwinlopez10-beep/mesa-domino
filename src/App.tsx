@@ -1018,6 +1018,10 @@ export default function App() {
           alignItems: 'center',
           justifyContent: 'center',
           width: '100%',
+          background: 'transparent',
+          backgroundColor: 'transparent',
+          border: 'none',
+          boxShadow: 'none',
         }}
       >
         <img
@@ -1028,9 +1032,13 @@ export default function App() {
             width: '200px',
             maxWidth: '50vw',
             height: 'auto',
+            background: 'transparent',
+            backgroundColor: 'transparent',
+            border: 'none',
+            outline: 'none',
+            boxShadow: 'none',
             mixBlendMode: 'screen',
-            filter: 'drop-shadow(0 0 18px rgba(255, 215, 0, 0.45)) contrast(1.15) brightness(1.05)',
-            opacity: 0.95,
+            filter: 'drop-shadow(0 0 15px rgba(255, 215, 0, 0.45))',
           }}
         />
       </div>

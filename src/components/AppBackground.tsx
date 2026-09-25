@@ -218,17 +218,15 @@ export const BackgroundThumbnailCard: React.FC<BackgroundThumbnailCardProps> = (
           title={title}
         />
 
-        {/* Ficha en miniatura con los mismos bordes difuminados */}
+        {/* Ficha en miniatura con transparencia y resplandor dorado */}
         <div className="w-10 h-10 flex items-center justify-center">
           <img
             src="/icon.png"
             alt=""
             className="w-full h-full object-contain"
             style={{
-              borderRadius: '8px',
-              WebkitMaskImage: 'radial-gradient(circle, black 65%, transparent 100%)',
-              maskImage: 'radial-gradient(circle, black 65%, transparent 100%)',
-              filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4))',
+              mixBlendMode: 'screen',
+              filter: 'drop-shadow(0 0 8px rgba(255, 215, 0, 0.45))',
             }}
           />
         </div>

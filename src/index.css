@@ -16,14 +16,22 @@ html, body {
   align-items: center;
   justify-content: center;
   width: 100%;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .domino-watermark-img {
   width: 200px;
   max-width: 50vw;
   height: auto;
-  mix-blend-mode: screen; /* Elimina por completo los tonos negros y oscuros, dejando la ficha y las estrellas amarillas 100% transparentes sobre el degradado */
-  filter: drop-shadow(0 0 18px rgba(255, 215, 0, 0.45)) contrast(1.15) brightness(1.05);
-  opacity: 0.95;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.45));
 }
 
