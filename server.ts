@@ -2,6 +2,19 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 
+// Helper to decode HTML entities returned by YouTube API snippet text
+function decodeHtmlEntities(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
 // In-memory search cache for fast repeated queries (24 hours TTL)
 const searchCache = new Map<string, { time: number; results: any[] }>();
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -19,6 +32,69 @@ async function fetchYouTubeTracks(query: string): Promise<any[]> {
 
   let finalResults: any[] = [];
   const seenVideoIds = new Set<string>();
+
+  // Layer 0: Official Google YouTube Data API v3
+  // Endpoint: https://www.googleapis.com/youtube/v3/search
+  // Mandatory parameters:
+  // - part=snippet
+  // - type=video
+  // - videoEmbeddable=true (indispensable to avoid embed restrictions / "Video no disponible")
+  // - maxResults=15
+  // - q=${encodeURIComponent(cleanQuery)}
+  // - key=${YOUTUBE_API_KEY}
+  const youtubeApiKey = process.env.YOUTUBE_API_KEY || process.env.VITE_YOUTUBE_API_KEY || '';
+  if (youtubeApiKey) {
+    try {
+      const searchEndpoint = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=15&q=${encodeURIComponent(cleanQuery)}&key=${youtubeApiKey}`;
+      const apiResponse = await fetch(searchEndpoint, {
+        signal: AbortSignal.timeout(6000),
+      });
+
+      if (apiResponse.ok) {
+        const apiData = await apiResponse.json();
+        if (Array.isArray(apiData?.items) && apiData.items.length > 0) {
+          for (const item of apiData.items) {
+            const vid = item?.id?.videoId;
+            if (vid && typeof vid === 'string' && vid.length === 11 && !seenVideoIds.has(vid)) {
+              seenVideoIds.add(vid);
+              const title = decodeHtmlEntities(item.snippet?.title || '').trim();
+              const artist = decodeHtmlEntities(item.snippet?.channelTitle || cleanQuery).trim();
+              const thumb =
+                item.snippet?.thumbnails?.high?.url ||
+                item.snippet?.thumbnails?.medium?.url ||
+                item.snippet?.thumbnails?.default?.url ||
+                `https://img.youtube.com/vi/${vid}/hqdefault.jpg`;
+
+              if (title) {
+                finalResults.push({
+                  id: `yt_${vid}`,
+                  videoId: vid,
+                  title,
+                  artist,
+                  sourceType: 'youtube',
+                  url: `https://www.youtube.com/embed/${vid}?autoplay=1&playsinline=1&enablejsapi=1`,
+                  artworkUrl: thumb,
+                  durationText: '',
+                });
+              }
+            }
+          }
+        }
+      } else {
+        const errJson = await apiResponse.json().catch(() => null);
+        console.warn('YouTube Data API v3 returned non-ok response:', apiResponse.status, errJson);
+      }
+    } catch (err) {
+      console.warn('YouTube Data API v3 fetch error:', err);
+    }
+  }
+
+  // If Layer 0 returned high-quality embeddable results, cache and return immediately
+  if (finalResults.length > 0) {
+    const validResults = finalResults.slice(0, 20);
+    searchCache.set(cacheKey, { time: Date.now(), results: validResults });
+    return validResults;
+  }
 
   const walkInnertube = (o: any) => {
     if (!o || typeof o !== 'object') return;

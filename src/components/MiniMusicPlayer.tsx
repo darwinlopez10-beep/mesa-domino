@@ -162,14 +162,18 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
       ? Math.min(100, (effectiveCurrentTime / effectiveDuration) * 100)
       : 0;
 
-  // Construct standard YouTube embed URL with JavaScript API enabled (without broken search or origin restrictions)
+  // Construct standard YouTube embed URL with JavaScript API enabled (with origin and enablejsapi)
+  const pageOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const originParam = pageOrigin ? `&origin=${encodeURIComponent(pageOrigin)}` : '';
+
   const embedUrl = ytVideoId
-    ? `https://www.youtube.com/embed/${ytVideoId}?autoplay=${isPlaying ? 1 : 0}&playsinline=1&enablejsapi=1&version=3&rel=0`
+    ? `https://www.youtube.com/embed/${ytVideoId}?autoplay=${isPlaying ? 1 : 0}&playsinline=1&enablejsapi=1${originParam}&version=3&rel=0`
     : track.url && track.url.includes('embed')
     ? track.url
     : '';
 
   const [currentIframeSrc, setCurrentIframeSrc] = useState(embedUrl);
+  const ytPlayerRef = useRef<any>(null);
 
   // Helper to send commands to YouTube IFrame API (supports both array and object formats)
   const sendYouTubeCommand = useCallback(
@@ -282,6 +286,21 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
       onNextTrack();
     }
   }, [isAutoplay, isPlaying, onTogglePlay, onNextTrack]);
+
+  // Helper to skip automatically to the next track when a video has embed restrictions (Error 150/101)
+  const handleAutoSkipBlockedVideo = useCallback((errCode: number) => {
+    console.warn(`YouTube video restricted or blocked on external sites (error code: ${errCode}). Auto-skipping to next track without interrupting the game.`);
+    if (hasTriggeredNextRef.current) return;
+    hasTriggeredNextRef.current = true;
+    setTimeout(() => {
+      hasTriggeredNextRef.current = false;
+    }, 1500);
+
+    // Salta de inmediato al siguiente resultado de la lista sin interrumpir la experiencia
+    if (onNextTrack) {
+      onNextTrack();
+    }
+  }, [onNextTrack]);
 
   // Intentar encontrar automáticamente una versión alternativa reproducible si YouTube bloquea la inserción (Error 101/150)
   const handleAutoRecoverVideo = useCallback(async () => {
@@ -396,7 +415,11 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
       if (data.event === 'onError' || (data.event === 'infoDelivery' && data.info?.errorCode)) {
         const errCode = Number(data.data ?? data.info?.errorCode ?? 150);
         console.warn('YouTube playback error or embed restriction code:', errCode);
-        setEmbedError(errCode);
+        if (errCode === 150 || errCode === 101 || errCode === 100 || errCode === 2 || errCode === 5) {
+          handleAutoSkipBlockedVideo(errCode);
+        } else {
+          setEmbedError(errCode);
+        }
       }
     };
 
@@ -404,7 +427,7 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [isYouTube, triggerNextTrack, ytVideoId, playlist, onTrackAutoAdvanced, track.title, track.artist]);
+  }, [isYouTube, triggerNextTrack, handleAutoSkipBlockedVideo, ytVideoId, playlist, onTrackAutoAdvanced, track.title, track.artist]);
 
   // Polling fallback to query YouTube player state and keep communication open
   useEffect(() => {
@@ -481,9 +504,9 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
     setYtDuration(0);
     setEmbedError(null);
 
-    // 2. Nueva URL de embed con autoplay garantizado
+    // 2. Nueva URL de embed con autoplay garantizado y origin configurado
     const targetEmbedUrl = ytVideoId
-      ? `https://www.youtube.com/embed/${ytVideoId}?autoplay=1&playsinline=1&enablejsapi=1&version=3&rel=0`
+      ? `https://www.youtube.com/embed/${ytVideoId}?autoplay=1&playsinline=1&enablejsapi=1${originParam}&version=3&rel=0`
       : track.url && track.url.includes('embed')
       ? track.url
       : '';
@@ -512,14 +535,41 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
         console.warn('Error commanding iframe loadVideoById:', err);
       }
     }
-  }, [ytVideoId, track.id, track.url, isYouTube, iframeLoaded, volume, sendYouTubeCommand]);
+  }, [ytVideoId, track.id, track.url, isYouTube, iframeLoaded, volume, originParam, sendYouTubeCommand]);
 
-  // When YouTube iframe finishes loading, initialize its state
+  // When YouTube iframe finishes loading, initialize its state and hook YT.Player onError event
   const handleIframeLoad = () => {
     setIframeLoaded(true);
     sendYouTubeCommand('listening');
     sendYouTubeCommand('addEventListener', ['onStateChange']);
+    sendYouTubeCommand('addEventListener', ['onError']);
     sendYouTubeCommand('setVolume', [Math.round(volume * 100)]);
+
+    // Bind official YT.Player instance if window.YT is ready
+    if (typeof window !== 'undefined' && (window as any).YT?.Player && iframeRef.current) {
+      try {
+        if (!ytPlayerRef.current) {
+          ytPlayerRef.current = new (window as any).YT.Player(iframeRef.current, {
+            events: {
+              onError: (event: any) => {
+                const code = Number(event?.data ?? 150);
+                console.warn('YT.Player onError event received:', code);
+                if (code === 150 || code === 101 || code === 100 || code === 2 || code === 5) {
+                  handleAutoSkipBlockedVideo(code);
+                }
+              },
+              onStateChange: (event: any) => {
+                if (event?.data === 0) {
+                  triggerNextTrack();
+                }
+              },
+            },
+          });
+        }
+      } catch (err) {
+        console.warn('YT.Player binding notice:', err);
+      }
+    }
 
     if (volume === 0) {
       sendYouTubeCommand('mute');
