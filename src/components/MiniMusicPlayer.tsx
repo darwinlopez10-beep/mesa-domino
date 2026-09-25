@@ -45,6 +45,7 @@ interface MiniMusicPlayerProps {
   isAutoplay?: boolean;
   onToggleAutoplay?: () => void;
   isModalOpen?: boolean;
+  isVisible?: boolean;
   lang?: AppLanguage;
 }
 
@@ -66,6 +67,7 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
   isAutoplay = true,
   onToggleAutoplay,
   isModalOpen = false,
+  isVisible = true,
   lang = 'es',
 }) => {
   const [showVideo, setShowVideo] = useState(true);
@@ -202,6 +204,35 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
     },
     []
   );
+
+  // Exponer método directo para inicializar la reproducción inmediatamente en el gesto del usuario en Android
+  useEffect(() => {
+    (window as any).__dominoDirectPlay = (videoId: string) => {
+      if (!videoId) return;
+
+      // 1. Invocar directamente instancia YT.Player si está disponible
+      if (ytPlayerRef.current) {
+        try {
+          if (typeof ytPlayerRef.current.loadVideoById === 'function') {
+            ytPlayerRef.current.loadVideoById({ videoId, startSeconds: 0 });
+          }
+          if (typeof ytPlayerRef.current.playVideo === 'function') {
+            ytPlayerRef.current.playVideo();
+          }
+        } catch (e) {
+          console.warn('Direct YT.Player invocation notice:', e);
+        }
+      }
+
+      // 2. Invocar comandos postMessage al contentWindow del iframe
+      sendYouTubeCommand('loadVideoById', [videoId, 0]);
+      sendYouTubeCommand('playVideo');
+    };
+
+    return () => {
+      delete (window as any).__dominoDirectPlay;
+    };
+  }, [sendYouTubeCommand]);
 
   // Handle Play / Pause for YouTube iframe via postMessage
   useEffect(() => {
@@ -597,85 +628,103 @@ export const MiniMusicPlayer: React.FC<MiniMusicPlayerProps> = ({
   return (
     <div
       id="mini-music-player-container"
-      className={`transition-all duration-300 ${
-        isModalOpen
-          ? 'opacity-0 pointer-events-none fixed -bottom-96 -right-96 z-0'
+      className={
+        isModalOpen || !isVisible
+          ? 'fixed bottom-0 left-0 w-[1px] h-[1px] pointer-events-none z-40'
           : 'fixed bottom-16 sm:bottom-6 landscape:bottom-2 left-2 right-2 sm:left-auto sm:right-6 landscape:left-auto landscape:right-3 sm:w-96 landscape:w-84 z-40 animate-in slide-in-from-bottom-3 duration-200'
-      }`}
+      }
     >
-      <div className="bg-stone-900/95 backdrop-blur-md border border-stone-750/90 rounded-2xl shadow-2xl shadow-black/80 p-2.5 sm:p-3 flex flex-col gap-2">
-        {/* Persistent YouTube iframe element (keeps playing in background even if modal is open) */}
-        {isYouTube && (ytVideoId || track.artist || track.url) && (
-          <div
-            className={`transition-all duration-300 overflow-hidden rounded-xl bg-black border border-stone-800 relative ${
-              showVideo ? 'w-full aspect-video opacity-100 mb-1' : 'w-full h-1 opacity-0 pointer-events-none'
-            }`}
-          >
-            <iframe
-              ref={iframeRef}
-              id="persistent-domino-youtube-iframe"
-              src={currentIframeSrc}
-              title={track.title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-              referrerPolicy="strict-origin-when-cross-origin"
-              onLoad={handleIframeLoad}
-              className="w-full h-full"
-            />
+      {/* Persistent YouTube iframe element with accessible minimal visibility on mobile */}
+      {isYouTube && (ytVideoId || track.artist || track.url) && (
+        <div
+          style={
+            !showVideo || isModalOpen || !isVisible
+              ? {
+                  position: 'fixed',
+                  width: '1px',
+                  height: '1px',
+                  opacity: 0.01,
+                  pointerEvents: 'none',
+                  left: 0,
+                  bottom: 0,
+                  zIndex: 1,
+                }
+              : undefined
+          }
+          className={`transition-all duration-300 overflow-hidden rounded-xl bg-black border border-stone-800 relative ${
+            showVideo && !isModalOpen && isVisible
+              ? 'w-full aspect-video opacity-100 mb-1'
+              : 'w-[1px] h-[1px]'
+          }`}
+        >
+          <iframe
+            ref={iframeRef}
+            id="persistent-domino-youtube-iframe"
+            src={currentIframeSrc}
+            title={track.title}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+            onLoad={handleIframeLoad}
+            className="w-full h-full"
+          />
 
-            {/* Aviso y recuperación automática si YouTube bloquea la inserción (Error 101/150 o no disponible) */}
-            {embedError !== null && showVideo && (
-              <div className="absolute inset-0 bg-stone-950/92 backdrop-blur-md flex flex-col items-center justify-center p-3 text-center z-10 animate-in fade-in duration-200">
-                <AlertCircle className="w-8 h-8 text-amber-400 mb-2 flex-shrink-0" />
-                <p className="text-xs font-bold text-stone-100 mb-1">
-                  {lang === 'es'
-                    ? 'Este video tiene restricción de reproducción externa'
-                    : 'This video has embedding playback restrictions'}
-                </p>
-                <p className="text-[11px] text-stone-400 mb-3 max-w-xs leading-relaxed">
-                  {lang === 'es'
-                    ? 'El autor restringió la reproducción en otras apps. Toca abajo para buscar otra versión o abrirlo directamente.'
-                    : 'The author restricted embeds. Tap below to find another version or open in YouTube.'}
-                </p>
-                <div className="flex items-center gap-2 flex-wrap justify-center">
+          {/* Aviso y recuperación automática si YouTube bloquea la inserción (Error 101/150 o no disponible) */}
+          {embedError !== null && showVideo && !isModalOpen && isVisible && (
+            <div className="absolute inset-0 bg-stone-950/92 backdrop-blur-md flex flex-col items-center justify-center p-3 text-center z-10 animate-in fade-in duration-200">
+              <AlertCircle className="w-8 h-8 text-amber-400 mb-2 flex-shrink-0" />
+              <p className="text-xs font-bold text-stone-100 mb-1">
+                {lang === 'es'
+                  ? 'Este video tiene restricción de reproducción externa'
+                  : 'This video has embedding playback restrictions'}
+              </p>
+              <p className="text-[11px] text-stone-400 mb-3 max-w-xs leading-relaxed">
+                {lang === 'es'
+                  ? 'El autor restringió la reproducción en otras apps. Toca abajo para buscar otra versión o abrirlo directamente.'
+                  : 'The author restricted embeds. Tap below to find another version or open in YouTube.'}
+              </p>
+              <div className="flex items-center gap-2 flex-wrap justify-center">
+                <button
+                  type="button"
+                  disabled={isAutoRecovering}
+                  onClick={handleAutoRecoverVideo}
+                  className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-stone-950 font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
+                >
+                  {isAutoRecovering ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  )}
+                  <span>{lang === 'es' ? 'Buscar otra versión' : 'Find alternative version'}</span>
+                </button>
+                {ytVideoId && (
+                  <a
+                    href={`https://www.youtube.com/watch?v=${ytVideoId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>{lang === 'es' ? 'Ver en YouTube' : 'Watch on YouTube'}</span>
+                  </a>
+                )}
+                {onNextTrack && (
                   <button
                     type="button"
-                    disabled={isAutoRecovering}
-                    onClick={handleAutoRecoverVideo}
-                    className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-stone-950 font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
+                    onClick={onNextTrack}
+                    className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold cursor-pointer transition-all"
                   >
-                    {isAutoRecovering ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <RotateCcw className="w-3.5 h-3.5" />
-                    )}
-                    <span>{lang === 'es' ? 'Buscar otra versión' : 'Find alternative version'}</span>
+                    {lang === 'es' ? 'Siguiente' : 'Next'}
                   </button>
-                  {ytVideoId && (
-                    <a
-                      href={`https://www.youtube.com/watch?v=${ytVideoId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>{lang === 'es' ? 'Ver en YouTube' : 'Watch on YouTube'}</span>
-                    </a>
-                  )}
-                  {onNextTrack && (
-                    <button
-                      type="button"
-                      onClick={onNextTrack}
-                      className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold cursor-pointer transition-all"
-                    >
-                      {lang === 'es' ? 'Siguiente' : 'Next'}
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mini Player Control Card (visible when modal is closed and track is chosen) */}
+      <div className={`bg-stone-900/95 backdrop-blur-md border border-stone-750/90 rounded-2xl shadow-2xl shadow-black/80 p-2.5 sm:p-3 flex flex-col gap-2 ${isModalOpen || !isVisible ? 'hidden' : ''}`}>
 
         {/* Progress Bar (if track has finite duration) */}
         {effectiveDuration > 0 && (

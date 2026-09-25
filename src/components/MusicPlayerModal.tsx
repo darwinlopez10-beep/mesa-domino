@@ -65,6 +65,19 @@ interface MusicPlayerModalProps {
   onClearMusicHistory?: () => void;
 }
 
+// Helper to decode HTML entities in YouTube titles/channel names
+function decodeHtmlEntities(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
 // Función auxiliar para construir URLs de iframe seguras con origin y enablejsapi
 export function buildEmbedUrl(videoId: string, autoplay = true): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -354,6 +367,8 @@ export function extractYouTubeId(url: string): string | null {
 const POPULAR_SEARCH_TAGS = [
   'Ana Gabriel',
   'Alejandro Fernández',
+  'Anthony Santos',
+  'Zacarías Ferreira',
   'Bachata',
   'Salsa Clásica',
   'Rancheras',
@@ -550,9 +565,30 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
     const updatedHistory = recordSongPlay(playTrack);
     setHistory(updatedHistory);
 
+    // Inicializa la reproducción directamente en el gesto del usuario en Android (evita bloqueo de autoplay)
+    if (playTrack.videoId && typeof window !== 'undefined' && typeof (window as any).__dominoDirectPlay === 'function') {
+      try {
+        (window as any).__dominoDirectPlay(playTrack.videoId);
+      } catch (e) {
+        console.warn('Direct user gesture play notice:', e);
+      }
+    }
+
     // 2. Notificar reproducción con la canción garantizada con videoId
     onSelectTrack(playTrack, effectivePlaylistContext);
     setIsVideoExpanded(true);
+  };
+
+  // Helper para ejecutar la búsqueda y ocultar el teclado en móviles
+  const handleExecuteSearch = (termToSearch?: string) => {
+    if (searchInputRef.current) {
+      searchInputRef.current.blur();
+    }
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    const term = termToSearch !== undefined ? termToSearch : (searchInputRef.current?.value || searchQuery);
+    handleSearchYouTube(term);
   };
 
   // Búsqueda en YouTube rápida, fiable y con videoId verificado en cada resultado
@@ -560,7 +596,7 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
     const rawVal = termToSearch !== undefined ? termToSearch : (searchInputRef.current?.value || searchQuery);
     const query = (rawVal || '').trim();
 
-    // Ocultar teclado virtual en Android y enfocar resultados
+    // Ocultar teclado virtual en Android de inmediato para permitir ver resultados
     if (searchInputRef.current) {
       searchInputRef.current.blur();
     }
@@ -606,8 +642,8 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
       return queryTokens.every((token) => tStr.includes(token)) || tStr.includes(queryLower);
     });
 
-    // 2. Búsqueda principal directa en YouTube mediante el backend integrado
-    // Devuelve videos reales con videoId verificado de 11 caracteres
+    // 2. Búsqueda principal directa en YouTube mediante el backend integrado y cliente directo
+    // Devuelve videos reales con videoId verificado de 11 caracteres y maneja artistas como Anthony Santos o Zacarías Ferreira
     const fetchYouTubeDirect = async (): Promise<MusicTrack[]> => {
       try {
         const res = await fetch(`/api/music/search?q=${encodeURIComponent(query)}`, {
@@ -639,6 +675,44 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
           }
         }
       } catch {}
+
+      // Capa de cliente directa con la clave pública inyectada VITE_YOUTUBE_API_KEY o YOUTUBE_API_KEY
+      const clientApiKey =
+        (import.meta as any).env?.VITE_YOUTUBE_API_KEY ||
+        (typeof process !== 'undefined' ? (process as any).env?.YOUTUBE_API_KEY || (process as any).env?.VITE_YOUTUBE_API_KEY : '');
+      if (clientApiKey) {
+        try {
+          const directUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=15&q=${encodeURIComponent(query)}&key=${clientApiKey}`;
+          const directRes = await fetch(directUrl, { signal: AbortSignal.timeout(6000) });
+          if (directRes.ok) {
+            const directData = await directRes.json();
+            if (Array.isArray(directData?.items) && directData.items.length > 0) {
+              return directData.items
+                .filter(
+                  (item: any) =>
+                    item?.id?.videoId &&
+                    typeof item.id.videoId === 'string' &&
+                    item.id.videoId.length === 11
+                )
+                .map((item: any) => ({
+                  id: `yt_${item.id.videoId}`,
+                  videoId: item.id.videoId,
+                  title: decodeHtmlEntities(item.snippet?.title || query).trim(),
+                  artist: decodeHtmlEntities(item.snippet?.channelTitle || query).trim(),
+                  sourceType: 'youtube',
+                  url: buildEmbedUrl(item.id.videoId, true),
+                  artworkUrl:
+                    item.snippet?.thumbnails?.high?.url ||
+                    item.snippet?.thumbnails?.medium?.url ||
+                    `https://img.youtube.com/vi/${item.id.videoId}/hqdefault.jpg`,
+                  durationText: '',
+                }));
+            }
+          }
+        } catch (cErr) {
+          console.warn('Direct YouTube Data API query notice:', cErr);
+        }
+      }
 
       return [];
     };
@@ -763,8 +837,7 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
               action="javascript:void(0)"
               onSubmit={(e) => {
                 e.preventDefault();
-                const term = searchInputRef.current?.value ?? searchQuery;
-                handleSearchYouTube(term);
+                handleExecuteSearch();
               }}
               className="flex flex-row items-center gap-2 w-full"
             >
@@ -788,16 +861,21 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.keyCode === 13) {
+                    if (e.key === 'Enter' || e.keyCode === 13 || e.which === 13) {
                       e.preventDefault();
-                      const term = searchInputRef.current?.value ?? searchQuery;
-                      handleSearchYouTube(term);
+                      handleExecuteSearch();
+                    }
+                  }}
+                  onKeyUp={(e) => {
+                    if (e.key === 'Enter' || e.keyCode === 13 || e.which === 13) {
+                      e.preventDefault();
+                      searchInputRef.current?.blur();
                     }
                   }}
                   placeholder={
                     lang === 'es'
-                      ? 'Escribe cualquier cantante (ej: Vicente Fernández, Gabriel, Shakira)...'
-                      : 'Type any artist or song (e.g. Queen, Frank Sinatra, Shakira)...'
+                      ? 'Escribe cualquier cantante (ej: Anthony Santos, Zacarías Ferreira)...'
+                      : 'Type any artist or song (e.g. Anthony Santos, Queen, Shakira)...'
                   }
                   className="w-full bg-transparent px-2.5 sm:px-3 py-2.5 text-xs sm:text-sm text-stone-100 placeholder:text-stone-500 focus:outline-none min-h-[44px]"
                 />
@@ -820,15 +898,18 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
                 )}
               </div>
 
-              {/* Botón con la palabra Buscar al lado (type submit + onClick para máxima compatibilidad móvil y PC) */}
+              {/* Botón con la palabra Buscar al lado (type submit + onClick + onTouchEnd para máxima compatibilidad móvil y PC) */}
               <button
                 type="submit"
                 id="btn-search-music"
                 disabled={isSearching}
                 onClick={(e) => {
                   e.preventDefault();
-                  const term = searchInputRef.current?.value ?? searchQuery;
-                  handleSearchYouTube(term);
+                  handleExecuteSearch();
+                }}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  handleExecuteSearch();
                 }}
                 className="px-4 sm:px-5 py-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-50 text-stone-950 font-black text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 flex-shrink-0 cursor-pointer min-h-[44px] min-w-[84px] touch-manipulation active:scale-95 select-none"
               >

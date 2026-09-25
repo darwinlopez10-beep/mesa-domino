@@ -1045,29 +1045,28 @@ export default function App() {
         />
       </main>
 
-      {/* Persistent Mini Music Player Bar when a track is chosen (kept mounted so audio never restarts or stops) */}
-      {currentMusicTrack && (
-        <MiniMusicPlayer
-          track={currentMusicTrack}
-          playlist={effectivePlaylist}
-          onTrackAutoAdvanced={handleSelectMusicTrack}
-          isPlaying={isMusicPlaying}
-          volume={musicVolume}
-          currentTime={musicCurrentTime}
-          duration={musicDuration}
-          onTogglePlay={handleToggleMusicPlay}
-          onVolumeChange={handleMusicVolumeChange}
-          onToggleMute={handleToggleMute}
-          onOpenFullPlayer={() => setIsMusicModalOpen(true)}
-          onClosePlayer={handleCloseMusicPlayer}
-          onNextTrack={handlePlayNextTrack}
-          onPrevTrack={handlePlayPrevTrack}
-          isAutoplay={isMusicAutoplay}
-          onToggleAutoplay={handleToggleAutoplay}
-          isModalOpen={isMusicModalOpen}
-          lang={lang}
-        />
-      )}
+      {/* Persistent Mini Music Player Bar (always mounted with minimal accessible 1px iframe so mobile Android initializes playback without block) */}
+      <MiniMusicPlayer
+        track={currentMusicTrack || CURATED_DOMINO_YOUTUBE_TRACKS[0]}
+        isVisible={!!currentMusicTrack}
+        playlist={effectivePlaylist}
+        onTrackAutoAdvanced={handleSelectMusicTrack}
+        isPlaying={isMusicPlaying}
+        volume={musicVolume}
+        currentTime={musicCurrentTime}
+        duration={musicDuration}
+        onTogglePlay={handleToggleMusicPlay}
+        onVolumeChange={handleMusicVolumeChange}
+        onToggleMute={handleToggleMute}
+        onOpenFullPlayer={() => setIsMusicModalOpen(true)}
+        onClosePlayer={handleCloseMusicPlayer}
+        onNextTrack={handlePlayNextTrack}
+        onPrevTrack={handlePlayPrevTrack}
+        isAutoplay={isMusicAutoplay}
+        onToggleAutoplay={handleToggleAutoplay}
+        isModalOpen={isMusicModalOpen}
+        lang={lang}
+      />
 
       {/* Bottom Sticky Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-30 bg-slate-950/75 backdrop-blur-md border-t border-slate-700/60 px-2 sm:px-4 py-2 flex items-center justify-around sm:justify-center sm:gap-10 shadow-2xl">

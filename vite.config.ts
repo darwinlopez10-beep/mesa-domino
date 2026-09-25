@@ -87,6 +87,17 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    define: {
+      'import.meta.env.VITE_YOUTUBE_API_KEY': JSON.stringify(
+        process.env.VITE_YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY || ''
+      ),
+      'process.env.YOUTUBE_API_KEY': JSON.stringify(
+        process.env.VITE_YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY || ''
+      ),
+      'process.env.VITE_YOUTUBE_API_KEY': JSON.stringify(
+        process.env.VITE_YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY || ''
+      ),
+    },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
