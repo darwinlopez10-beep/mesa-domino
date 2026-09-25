@@ -89,13 +89,13 @@ export default defineConfig(() => {
     },
     define: {
       'import.meta.env.VITE_YOUTUBE_API_KEY': JSON.stringify(
-        process.env.VITE_YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY || ''
+        process.env.VITE_YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY || 'AIzaSyArJug73pDTiE8AvHu9IY8OB_xZ7X_kJro'
       ),
       'process.env.YOUTUBE_API_KEY': JSON.stringify(
-        process.env.VITE_YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY || ''
+        process.env.VITE_YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY || 'AIzaSyArJug73pDTiE8AvHu9IY8OB_xZ7X_kJro'
       ),
       'process.env.VITE_YOUTUBE_API_KEY': JSON.stringify(
-        process.env.VITE_YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY || ''
+        process.env.VITE_YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY || 'AIzaSyArJug73pDTiE8AvHu9IY8OB_xZ7X_kJro'
       ),
     },
     server: {

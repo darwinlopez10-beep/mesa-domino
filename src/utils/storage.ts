@@ -402,3 +402,83 @@ export function saveMusicAutoplay(enabled: boolean): void {
   }
 }
 
+// ==========================================
+// YOUTUBE DATA API V3 KEY STORAGE & RESOLUTION
+// ==========================================
+export const YOUTUBE_KEY_STORAGE = 'domino_youtube_api_key_v1';
+export const DEFAULT_EMBEDDED_YOUTUBE_KEY = 'AIzaSyArJug73pDTiE8AvHu9IY8OB_xZ7X_kJro';
+
+/**
+ * Obtiene la clave de YouTube Data API v3 activa.
+ * Prioridad:
+ * 1. Clave guardada por el usuario en el dispositivo (localStorage)
+ * 2. Variable inyectada en tiempo de compilación (VITE_YOUTUBE_API_KEY)
+ * 3. Clave embebida por defecto garantizada para web móvil
+ */
+export function getYouTubeApiKey(): string {
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem(YOUTUBE_KEY_STORAGE);
+      if (saved && saved.trim().length > 10) {
+        return saved.trim();
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  const envKey =
+    (import.meta as any).env?.VITE_YOUTUBE_API_KEY ||
+    (typeof process !== 'undefined'
+      ? (process as any).env?.YOUTUBE_API_KEY || (process as any).env?.VITE_YOUTUBE_API_KEY
+      : '');
+
+  if (envKey && typeof envKey === 'string' && envKey.trim().length > 10) {
+    return envKey.trim();
+  }
+
+  return DEFAULT_EMBEDDED_YOUTUBE_KEY;
+}
+
+/**
+ * Guarda una clave de YouTube personalizada en el almacenamiento local del dispositivo.
+ */
+export function saveYouTubeApiKey(key: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const trimmed = (key || '').trim();
+    if (!trimmed) {
+      localStorage.removeItem(YOUTUBE_KEY_STORAGE);
+    } else {
+      localStorage.setItem(YOUTUBE_KEY_STORAGE, trimmed);
+    }
+  } catch {
+    // Ignore storage quota
+  }
+}
+
+/**
+ * Comprueba si el usuario tiene una clave personalizada guardada
+ */
+export function hasCustomYouTubeApiKey(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const saved = localStorage.getItem(YOUTUBE_KEY_STORAGE);
+    return Boolean(saved && saved.trim().length > 10);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Elimina la clave personalizada y restaura la clave por defecto
+ */
+export function resetYouTubeApiKey(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(YOUTUBE_KEY_STORAGE);
+  } catch {
+    // Ignore
+  }
+}
+

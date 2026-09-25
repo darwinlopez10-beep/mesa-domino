@@ -20,32 +20,37 @@ const searchCache = new Map<string, { time: number; results: any[] }>();
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // Helper to execute search across YouTube APIs with multiple fallback layers
-async function fetchYouTubeTracks(query: string): Promise<any[]> {
+async function fetchYouTubeTracks(query: string, customKey?: string): Promise<{ results: any[]; apiError: any | null }> {
   const cleanQuery = query.trim();
-  if (!cleanQuery) return [];
+  if (!cleanQuery) return { results: [], apiError: null };
 
   const cacheKey = cleanQuery.toLowerCase();
   const cached = searchCache.get(cacheKey);
   if (cached && Date.now() - cached.time < CACHE_TTL_MS && cached.results.length > 0) {
-    return cached.results;
+    return { results: cached.results, apiError: null };
   }
 
   let finalResults: any[] = [];
   const seenVideoIds = new Set<string>();
+  let youtubeApiError: { status: number; message: string; reason: string } | null = null;
 
   // Layer 0: Official Google YouTube Data API v3
   // Endpoint: https://www.googleapis.com/youtube/v3/search
-  // Mandatory parameters:
+  // Broad search parameters:
   // - part=snippet
   // - type=video
-  // - videoEmbeddable=true (indispensable to avoid embed restrictions / "Video no disponible")
   // - maxResults=15
   // - q=${encodeURIComponent(cleanQuery)}
-  // - key=${YOUTUBE_API_KEY}
-  const youtubeApiKey = process.env.YOUTUBE_API_KEY || process.env.VITE_YOUTUBE_API_KEY || '';
+  // - key=${youtubeApiKey}
+  const youtubeApiKey =
+    (customKey && customKey.trim()) ||
+    process.env.YOUTUBE_API_KEY ||
+    process.env.VITE_YOUTUBE_API_KEY ||
+    'AIzaSyArJug73pDTiE8AvHu9IY8OB_xZ7X_kJro';
+
   if (youtubeApiKey) {
     try {
-      const searchEndpoint = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=15&q=${encodeURIComponent(cleanQuery)}&key=${youtubeApiKey}`;
+      const searchEndpoint = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=15&q=${encodeURIComponent(cleanQuery)}&key=${youtubeApiKey}`;
       const apiResponse = await fetch(searchEndpoint, {
         signal: AbortSignal.timeout(6000),
       });
@@ -82,18 +87,31 @@ async function fetchYouTubeTracks(query: string): Promise<any[]> {
         }
       } else {
         const errJson = await apiResponse.json().catch(() => null);
-        console.warn('YouTube Data API v3 returned non-ok response:', apiResponse.status, errJson);
+        youtubeApiError = {
+          status: apiResponse.status,
+          message: errJson?.error?.message || apiResponse.statusText,
+          reason:
+            errJson?.error?.errors?.[0]?.reason ||
+            errJson?.error?.details?.[0]?.reason ||
+            (apiResponse.status === 403 ? 'quotaExceeded' : 'badRequest'),
+        };
+        console.warn('YouTube Data API v3 returned non-ok response:', apiResponse.status, youtubeApiError);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('YouTube Data API v3 fetch error:', err);
+      youtubeApiError = {
+        status: 0,
+        message: err?.message || 'Network error connecting to YouTube',
+        reason: 'networkError',
+      };
     }
   }
 
-  // If Layer 0 returned high-quality embeddable results, cache and return immediately
+  // If Layer 0 returned high-quality results, cache and return immediately
   if (finalResults.length > 0) {
     const validResults = finalResults.slice(0, 20);
     searchCache.set(cacheKey, { time: Date.now(), results: validResults });
-    return validResults;
+    return { results: validResults, apiError: null };
   }
 
   const walkInnertube = (o: any) => {
@@ -349,7 +367,7 @@ async function fetchYouTubeTracks(query: string): Promise<any[]> {
     searchCache.set(cacheKey, { time: Date.now(), results: validResults });
   }
 
-  return validResults;
+  return { results: validResults, apiError: validResults.length > 0 ? null : youtubeApiError };
 }
 
 process.on('uncaughtException', (err) => {
@@ -374,16 +392,22 @@ async function startServer() {
   // Shared Music / YouTube search handler (supports both /api/music/search and /api/youtube/search)
   const handleMusicSearch = async (req: express.Request, res: express.Response) => {
     const query = (req.query.q as string)?.trim();
+    const customKey = (req.query.key as string)?.trim();
     if (!query) {
       return res.status(400).json({ error: 'Query parameter "q" is required' });
     }
 
     try {
-      const results = await fetchYouTubeTracks(query);
-      return res.json({ results, query, success: true });
+      const { results, apiError } = await fetchYouTubeTracks(query, customKey);
+      return res.json({ results, query, success: true, apiError });
     } catch (err: unknown) {
       console.error("Error during search:", err);
-      return res.json({ results: [], query, error: "Failed to complete search" });
+      return res.json({
+        results: [],
+        query,
+        error: "Failed to complete search",
+        apiError: { status: 500, message: "Error interno del servidor al buscar en YouTube", reason: "serverError" }
+      });
     }
   };
 

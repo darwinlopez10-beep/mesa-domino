@@ -1,9 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Users, Target, Shield, Sparkles, Volume2, Check, Globe, Sun, Palette, Share2, ExternalLink } from 'lucide-react';
+import {
+  X,
+  Settings,
+  Users,
+  Target,
+  Shield,
+  Sparkles,
+  Volume2,
+  Check,
+  Globe,
+  Sun,
+  Palette,
+  Share2,
+  ExternalLink,
+  Key,
+  Youtube,
+  Loader2,
+  RotateCcw,
+  ShieldCheck,
+} from 'lucide-react';
 import { AppBackgroundTheme, GameMode, GameSettings, LanguageSetting, TrancaRule } from '../types';
 import { AppLanguage, TRANSLATIONS, resolveActiveLanguage, saveLanguageSetting } from '../utils/i18n';
 import { BACKGROUND_THEME_OPTIONS, BackgroundThumbnailCard } from './AppBackground';
-import { loadBackgroundTheme, saveBackgroundTheme } from '../utils/storage';
+import {
+  loadBackgroundTheme,
+  saveBackgroundTheme,
+  getYouTubeApiKey,
+  saveYouTubeApiKey,
+  hasCustomYouTubeApiKey,
+  resetYouTubeApiKey,
+} from '../utils/storage';
 
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.lopezdigitalmedia.anotadordomino';
 
@@ -96,6 +122,104 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     currentSettings.keepScreenAwake !== undefined ? currentSettings.keepScreenAwake : true
   );
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+
+  // Configuración discreta de clave de YouTube Data API v3
+  const [ytKeyInput, setYtKeyInput] = useState<string>(() => getYouTubeApiKey());
+  const [hasCustomYtKey, setHasCustomYtKey] = useState<boolean>(() => hasCustomYouTubeApiKey());
+  const [ytKeyTestStatus, setYtKeyTestStatus] = useState<{
+    tested: boolean;
+    valid: boolean;
+    message: string;
+    isTesting: boolean;
+  }>({
+    tested: false,
+    valid: false,
+    message: '',
+    isTesting: false,
+  });
+
+  const handleTestKeyInSettings = async () => {
+    const trimmed = ytKeyInput.trim();
+    if (!trimmed) {
+      setYtKeyTestStatus({
+        tested: true,
+        valid: false,
+        message: effectiveLang === 'es' ? 'Ingresa una clave de API antes de probar.' : 'Enter an API key before testing.',
+        isTesting: false,
+      });
+      return;
+    }
+
+    setYtKeyTestStatus((prev) => ({ ...prev, isTesting: true, message: '' }));
+    try {
+      const res = await fetch(
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=musica&key=${trimmed}`,
+        { signal: AbortSignal.timeout(6500) }
+      );
+      if (res.ok) {
+        setYtKeyTestStatus({
+          tested: true,
+          valid: true,
+          message: effectiveLang === 'es' ? '✓ Clave válida y con cuota activa' : '✓ Key is valid with active quota',
+          isTesting: false,
+        });
+      } else {
+        const errJson = await res.json().catch(() => null);
+        const reason = errJson?.error?.errors?.[0]?.reason || errJson?.error?.details?.[0]?.reason || '';
+        const msg = errJson?.error?.message || '';
+
+        let errSpanish = '';
+        if (res.status === 403 || reason === 'quotaExceeded' || msg.toLowerCase().includes('quota')) {
+          errSpanish = 'Error 403: Cuota diaria de YouTube API excedida.';
+        } else if (res.status === 400 || reason === 'API_KEY_INVALID' || reason === 'keyInvalid') {
+          errSpanish = 'Error 400: Clave de YouTube API no válida o restringida.';
+        } else {
+          errSpanish = `Error (${res.status}): ${msg || 'Error al validar'}`;
+        }
+
+        setYtKeyTestStatus({
+          tested: true,
+          valid: false,
+          message: errSpanish,
+          isTesting: false,
+        });
+      }
+    } catch {
+      setYtKeyTestStatus({
+        tested: true,
+        valid: false,
+        message: effectiveLang === 'es' ? 'Error de red al validar la clave.' : 'Network error validating key.',
+        isTesting: false,
+      });
+    }
+  };
+
+  const handleSaveKeyInSettings = () => {
+    const trimmed = ytKeyInput.trim();
+    if (trimmed) {
+      saveYouTubeApiKey(trimmed);
+      setHasCustomYtKey(true);
+      setYtKeyTestStatus({
+        tested: true,
+        valid: true,
+        message: effectiveLang === 'es' ? '✓ Clave guardada correctamente.' : '✓ Key saved successfully.',
+        isTesting: false,
+      });
+    }
+  };
+
+  const handleResetKeyInSettings = () => {
+    resetYouTubeApiKey();
+    const defaultKey = getYouTubeApiKey();
+    setYtKeyInput(defaultKey);
+    setHasCustomYtKey(false);
+    setYtKeyTestStatus({
+      tested: true,
+      valid: true,
+      message: effectiveLang === 'es' ? '✓ Clave restablecida a la original.' : '✓ Restored default key.',
+      isTesting: false,
+    });
+  };
 
   if (!isOpen) return null;
 
@@ -609,6 +733,96 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="w-4 h-4 accent-amber-500 cursor-pointer flex-shrink-0"
               />
             </div>
+          </div>
+
+          {/* YouTube Data API v3 Configuración (Buscador de Música) */}
+          <div className="p-3 bg-stone-850 rounded-xl border border-stone-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                <Youtube className="w-4 h-4 text-red-500" />
+                <span>{effectiveLang === 'es' ? 'YouTube Data API v3' : 'YouTube Data API v3'}</span>
+              </label>
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  hasCustomYtKey
+                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                    : 'bg-stone-800 text-stone-400 border-stone-700'
+                }`}
+              >
+                {hasCustomYtKey
+                  ? (effectiveLang === 'es' ? 'Clave propia activa' : 'Custom key active')
+                  : (effectiveLang === 'es' ? 'Clave pública integrada' : 'Default key')}
+              </span>
+            </div>
+
+            <p className="text-[11px] text-stone-300 leading-tight">
+              {effectiveLang === 'es'
+                ? 'Permite buscar y reproducir música en vivo. Si la cuota diaria gratuita se agota, puedes ingresar tu propia clave de Google Cloud.'
+                : 'Enables live music search and playback. If the free daily quota is exceeded, you can provide your own key.'}
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-0.5">
+              <input
+                type="text"
+                value={ytKeyInput}
+                onChange={(e) => {
+                  setYtKeyInput(e.target.value);
+                  setYtKeyTestStatus({ tested: false, valid: false, message: '', isTesting: false });
+                }}
+                placeholder="AIzaSy..."
+                className="flex-1 bg-stone-950 border border-stone-750 focus:border-amber-500 rounded-lg px-2.5 py-1.5 text-xs text-stone-100 font-mono focus:outline-none"
+              />
+              <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
+                <button
+                  type="button"
+                  disabled={ytKeyTestStatus.isTesting}
+                  onClick={handleTestKeyInSettings}
+                  className="px-2.5 py-1.5 bg-stone-800 hover:bg-stone-750 text-stone-200 text-xs font-bold rounded-lg border border-stone-700 transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 min-h-[34px]"
+                >
+                  {ytKeyTestStatus.isTesting ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Key className="w-3 h-3 text-amber-400" />
+                  )}
+                  <span>{effectiveLang === 'es' ? 'Probar' : 'Test'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveKeyInSettings}
+                  className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer min-h-[34px]"
+                >
+                  <Check className="w-3 h-3 stroke-[3]" />
+                  <span>{effectiveLang === 'es' ? 'Guardar' : 'Save'}</span>
+                </button>
+                {hasCustomYtKey && (
+                  <button
+                    type="button"
+                    onClick={handleResetKeyInSettings}
+                    className="p-1.5 bg-stone-900 hover:bg-stone-800 text-stone-400 hover:text-red-300 rounded-lg border border-stone-800 transition-colors cursor-pointer min-h-[34px] flex items-center justify-center"
+                    title={effectiveLang === 'es' ? 'Restablecer clave original' : 'Restore original key'}
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {ytKeyTestStatus.tested && (
+              <div
+                className={`text-xs px-2.5 py-1.5 rounded-lg border flex items-center gap-1.5 ${
+                  ytKeyTestStatus.valid
+                    ? 'bg-emerald-950/40 text-emerald-300 border-emerald-500/30'
+                    : 'bg-red-950/40 text-red-300 border-red-500/30'
+                }`}
+              >
+                {ytKeyTestStatus.valid ? (
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                ) : (
+                  <X className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+                )}
+                <span>{ytKeyTestStatus.message}</span>
+              </div>
+            )}
           </div>
 
           {/* Compartir Aplicación (Google Play Store) */}

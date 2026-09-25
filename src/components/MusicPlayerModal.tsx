@@ -31,6 +31,9 @@ import {
   Minus,
   Radio,
   Repeat,
+  Key,
+  ShieldCheck,
+  RefreshCw,
 } from 'lucide-react';
 import { MusicHistoryItem, MusicTrack } from '../types';
 import { AppLanguage, TRANSLATIONS } from '../utils/i18n';
@@ -39,6 +42,11 @@ import {
   recordSongPlay,
   deleteSongFromHistory,
   clearMusicHistory,
+  getYouTubeApiKey,
+  saveYouTubeApiKey,
+  hasCustomYouTubeApiKey,
+  resetYouTubeApiKey,
+  DEFAULT_EMBEDDED_YOUTUBE_KEY,
 } from '../utils/storage';
 
 interface MusicPlayerModalProps {
@@ -423,6 +431,124 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
   const [history, setHistory] = useState<MusicHistoryItem[]>(() => musicHistory || loadMusicHistory());
   const [isConfirmClearOpen, setIsConfirmClearOpen] = useState(false);
 
+  // Configuración discreta de clave de YouTube API v3
+  const [showApiKeyConfig, setShowApiKeyConfig] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState(() => getYouTubeApiKey());
+  const [hasCustomKey, setHasCustomKey] = useState(() => hasCustomYouTubeApiKey());
+  const [keyValidationStatus, setKeyValidationStatus] = useState<{
+    tested: boolean;
+    valid: boolean;
+    message: string;
+    isTesting: boolean;
+  }>({
+    tested: false,
+    valid: false,
+    message: '',
+    isTesting: false,
+  });
+
+  const handleTestApiKey = async (keyToTest: string) => {
+    const trimmed = (keyToTest || '').trim();
+    if (!trimmed) {
+      setKeyValidationStatus({
+        tested: true,
+        valid: false,
+        message: lang === 'es' ? 'Ingresa una clave de API antes de probar.' : 'Enter an API key before testing.',
+        isTesting: false,
+      });
+      return;
+    }
+
+    setKeyValidationStatus((prev) => ({ ...prev, isTesting: true, message: '' }));
+    try {
+      const testRes = await fetch(
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=musica&key=${trimmed}`,
+        { signal: AbortSignal.timeout(6500) }
+      );
+      if (testRes.ok) {
+        setKeyValidationStatus({
+          tested: true,
+          valid: true,
+          message:
+            lang === 'es'
+              ? '✓ ¡Clave de YouTube Data API v3 válida y con cuota activa disponible!'
+              : '✓ YouTube Data API v3 key is valid and has active quota!',
+          isTesting: false,
+        });
+      } else {
+        const errJson = await testRes.json().catch(() => null);
+        const errObj = errJson?.error;
+        const reason = errObj?.errors?.[0]?.reason || errObj?.details?.[0]?.reason || '';
+        const msg = errObj?.message || '';
+
+        let errSpanish = '';
+        if (testRes.status === 403 || reason === 'quotaExceeded' || msg.toLowerCase().includes('quota')) {
+          errSpanish = 'Error 403: Cuota diaria de YouTube API excedida para esta clave.';
+        } else if (
+          testRes.status === 400 ||
+          reason === 'API_KEY_INVALID' ||
+          reason === 'keyInvalid' ||
+          msg.toLowerCase().includes('api key')
+        ) {
+          errSpanish = 'Error 400: Clave de YouTube API no válida o restringida.';
+        } else if (reason === 'ipRefererBlocked' || msg.toLowerCase().includes('referer')) {
+          errSpanish = 'Error 403: Clave de YouTube restringida por referente/dominio.';
+        } else if (reason === 'accessNotConfigured') {
+          errSpanish = 'Error 403: La YouTube Data API v3 no está habilitada en Google Cloud para esta clave.';
+        } else {
+          errSpanish = `Error (${testRes.status}): ${msg || 'Error al validar clave'}`;
+        }
+
+        setKeyValidationStatus({
+          tested: true,
+          valid: false,
+          message: errSpanish,
+          isTesting: false,
+        });
+      }
+    } catch {
+      setKeyValidationStatus({
+        tested: true,
+        valid: false,
+        message:
+          lang === 'es'
+            ? 'Error de red o conexión al validar la clave con Google.'
+            : 'Network error validating key with Google.',
+        isTesting: false,
+      });
+    }
+  };
+
+  const handleSaveApiKey = () => {
+    const trimmed = apiKeyInput.trim();
+    if (trimmed) {
+      saveYouTubeApiKey(trimmed);
+      setHasCustomKey(true);
+      setKeyValidationStatus({
+        tested: true,
+        valid: true,
+        message: lang === 'es' ? '✓ Clave guardada con éxito en este dispositivo.' : '✓ Key successfully saved on this device.',
+        isTesting: false,
+      });
+    }
+  };
+
+  const handleResetApiKey = () => {
+    resetYouTubeApiKey();
+    const defaultKey = getYouTubeApiKey();
+    setApiKeyInput(defaultKey);
+    setHasCustomKey(false);
+    setKeyValidationStatus({
+      tested: true,
+      valid: true,
+      message:
+        lang === 'es'
+          ? '✓ Clave restablecida a la original integrada.'
+          : '✓ Restored to default embedded key.',
+      isTesting: false,
+    });
+  };
+
   // Sincronizar si cambia desde props
   useEffect(() => {
     if (musicHistory) {
@@ -629,140 +755,230 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
       return;
     }
 
-    setSearchQuery(query);
+    // Limpieza y normalización de la consulta (permite Antony / Anthony Santos, Zacarías Ferreira, etc.)
+    const cleanQuery = query.replace(/\s+/g, ' ').trim();
+    setSearchQuery(cleanQuery);
     setIsSearching(true);
     setSearchError(null);
     setHasSearched(true);
 
-    // 1. Coincidencias instantáneas del catálogo local de dominó (0ms, verificado)
-    const queryLower = query.toLowerCase();
+    // 1. Coincidencias instantáneas del catálogo local de dominó
+    const queryLower = cleanQuery.toLowerCase();
+    const queryAlt = queryLower.includes('antony')
+      ? queryLower.replace(/antony/g, 'anthony')
+      : queryLower.includes('anthony')
+      ? queryLower.replace(/anthony/g, 'antony')
+      : queryLower;
+
     const queryTokens = queryLower.split(/\s+/).filter(Boolean);
     const localMatches = CURATED_DOMINO_YOUTUBE_TRACKS.filter((t) => {
       const tStr = `${t.title} ${t.artist} ${t.genre || ''}`.toLowerCase();
-      return queryTokens.every((token) => tStr.includes(token)) || tStr.includes(queryLower);
+      return (
+        queryTokens.every((token) => tStr.includes(token)) ||
+        tStr.includes(queryLower) ||
+        tStr.includes(queryAlt)
+      );
     });
 
-    // 2. Búsqueda principal directa en YouTube mediante el backend integrado y cliente directo
-    // Devuelve videos reales con videoId verificado de 11 caracteres y maneja artistas como Anthony Santos o Zacarías Ferreira
-    const fetchYouTubeDirect = async (): Promise<MusicTrack[]> => {
-      try {
-        const res = await fetch(`/api/music/search?q=${encodeURIComponent(query)}`, {
-          signal: AbortSignal.timeout(7000),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data && Array.isArray(data.results) && data.results.length > 0) {
-            return data.results.filter(
-              (r: any) => r && r.videoId && typeof r.videoId === 'string' && r.videoId.length === 11
-            );
-          }
-        }
-      } catch (err) {
-        console.warn('API primary search error:', err);
-      }
+    // 2. Búsqueda principal directa en YouTube Data API v3
+    // Sin el filtro restrictivo videoEmbeddable=true para evitar descartar artistas latinos
+    const activeApiKey = getYouTubeApiKey();
 
-      // Capa de respaldo en servidor
-      try {
-        const res2 = await fetch(`/api/youtube/search?q=${encodeURIComponent(query)}`, {
-          signal: AbortSignal.timeout(5000),
-        });
-        if (res2.ok) {
-          const data2 = await res2.json();
-          if (data2 && Array.isArray(data2.results) && data2.results.length > 0) {
-            return data2.results.filter(
-              (r: any) => r && r.videoId && typeof r.videoId === 'string' && r.videoId.length === 11
-            );
-          }
-        }
-      } catch {}
+    interface DirectQueryResult {
+      tracks: MusicTrack[];
+      status: number;
+      isNetworkError: boolean;
+      errorMessageSpanish: string | null;
+    }
 
-      // Capa de cliente directa con la clave pública inyectada VITE_YOUTUBE_API_KEY o YOUTUBE_API_KEY
-      const clientApiKey =
-        (import.meta as any).env?.VITE_YOUTUBE_API_KEY ||
-        (typeof process !== 'undefined' ? (process as any).env?.YOUTUBE_API_KEY || (process as any).env?.VITE_YOUTUBE_API_KEY : '');
-      if (clientApiKey) {
-        try {
-          const directUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=15&q=${encodeURIComponent(query)}&key=${clientApiKey}`;
-          const directRes = await fetch(directUrl, { signal: AbortSignal.timeout(6000) });
-          if (directRes.ok) {
-            const directData = await directRes.json();
-            if (Array.isArray(directData?.items) && directData.items.length > 0) {
-              return directData.items
-                .filter(
-                  (item: any) =>
-                    item?.id?.videoId &&
-                    typeof item.id.videoId === 'string' &&
-                    item.id.videoId.length === 11
-                )
-                .map((item: any) => ({
-                  id: `yt_${item.id.videoId}`,
-                  videoId: item.id.videoId,
-                  title: decodeHtmlEntities(item.snippet?.title || query).trim(),
-                  artist: decodeHtmlEntities(item.snippet?.channelTitle || query).trim(),
-                  sourceType: 'youtube',
-                  url: buildEmbedUrl(item.id.videoId, true),
-                  artworkUrl:
-                    item.snippet?.thumbnails?.high?.url ||
-                    item.snippet?.thumbnails?.medium?.url ||
-                    `https://img.youtube.com/vi/${item.id.videoId}/hqdefault.jpg`,
-                  durationText: '',
-                }));
+    const executeDirectQuery = async (key: string): Promise<DirectQueryResult> => {
+      try {
+        const directUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=15&q=${encodeURIComponent(cleanQuery)}&key=${key}`;
+        const directRes = await fetch(directUrl, { signal: AbortSignal.timeout(6500) });
+
+        if (directRes.ok) {
+          const directData = await directRes.json();
+          const items = Array.isArray(directData?.items) ? directData.items : [];
+          const tracks: MusicTrack[] = [];
+          for (const item of items) {
+            const vid = item?.id?.videoId;
+            if (vid && typeof vid === 'string' && vid.length === 11) {
+              tracks.push({
+                id: `yt_${vid}`,
+                videoId: vid,
+                title: decodeHtmlEntities(item.snippet?.title || cleanQuery).trim(),
+                artist: decodeHtmlEntities(item.snippet?.channelTitle || cleanQuery).trim(),
+                sourceType: 'youtube',
+                url: buildEmbedUrl(vid, true),
+                artworkUrl:
+                  item.snippet?.thumbnails?.high?.url ||
+                  item.snippet?.thumbnails?.medium?.url ||
+                  item.snippet?.thumbnails?.default?.url ||
+                  `https://img.youtube.com/vi/${vid}/hqdefault.jpg`,
+                durationText: '',
+              });
             }
           }
-        } catch (cErr) {
-          console.warn('Direct YouTube Data API query notice:', cErr);
+          return {
+            tracks,
+            status: 200,
+            isNetworkError: false,
+            errorMessageSpanish: null,
+          };
         }
-      }
 
-      return [];
+        // Si la API respondió con código de error (como 400 o 403 por cuota)
+        const errJson = await directRes.json().catch(() => null);
+        const errObj = errJson?.error;
+        const reason = errObj?.errors?.[0]?.reason || errObj?.details?.[0]?.reason || '';
+        const msg = errObj?.message || '';
+
+        let errSpanish = '';
+        if (directRes.status === 403 || reason === 'quotaExceeded' || msg.toLowerCase().includes('quota')) {
+          errSpanish =
+            lang === 'es'
+              ? 'Error de cuota de YouTube API excedida (Límite diario alcanzado). Puedes agregar una clave propia en la configuración.'
+              : 'YouTube API daily quota exceeded. You can add your own key in settings.';
+        } else if (
+          directRes.status === 400 ||
+          reason === 'API_KEY_INVALID' ||
+          reason === 'keyInvalid' ||
+          msg.toLowerCase().includes('api key')
+        ) {
+          errSpanish =
+            lang === 'es'
+              ? 'Clave de YouTube API no válida o restringida. Verifica o actualiza tu clave en la configuración.'
+              : 'Invalid or restricted YouTube API key. Please check your key in settings.';
+        } else if (reason === 'ipRefererBlocked' || msg.toLowerCase().includes('referer')) {
+          errSpanish =
+            lang === 'es'
+              ? 'Clave de YouTube API restringida por dominio o referente web.'
+              : 'YouTube API key restricted by domain or web referer.';
+        } else if (reason === 'accessNotConfigured') {
+          errSpanish =
+            lang === 'es'
+              ? 'La YouTube Data API v3 no está habilitada en Google Cloud para esta clave.'
+              : 'YouTube Data API v3 is not enabled in Google Cloud for this key.';
+        } else {
+          errSpanish =
+            lang === 'es'
+              ? `Error de YouTube API (${directRes.status}): ${msg || 'Error en la consulta'}`
+              : `YouTube API error (${directRes.status}): ${msg || 'Search query error'}`;
+        }
+
+        return {
+          tracks: [],
+          status: directRes.status,
+          isNetworkError: false,
+          errorMessageSpanish: errSpanish,
+        };
+      } catch {
+        return {
+          tracks: [],
+          status: 0,
+          isNetworkError: true,
+          errorMessageSpanish:
+            lang === 'es'
+              ? 'Error de conexión o bloqueo de red al conectar con YouTube Data API.'
+              : 'Network connection error connecting to YouTube Data API.',
+        };
+      }
     };
 
     try {
-      const ytTracks = await fetchYouTubeDirect();
+      let queryResult = await executeDirectQuery(activeApiKey);
 
-      // Fusionar y desduplicar por videoId garantizado
-      const combined: MusicTrack[] = [];
-      const seenVideoIds = new Set<string>();
-
-      // 1. Primero las coincidencias locales verificadas
-      for (const track of localMatches) {
-        if (track.videoId && !seenVideoIds.has(track.videoId)) {
-          seenVideoIds.add(track.videoId);
-          combined.push(track);
+      // Si falló la consulta directa (por red o error de clave), intentar con el servidor integrado
+      if (queryResult.status !== 200 || queryResult.isNetworkError) {
+        try {
+          const srvUrl = `/api/music/search?q=${encodeURIComponent(cleanQuery)}&key=${encodeURIComponent(activeApiKey)}`;
+          const srvRes = await fetch(srvUrl, { signal: AbortSignal.timeout(6000) });
+          if (srvRes.ok) {
+            const srvData = await srvRes.json();
+            if (srvData && Array.isArray(srvData.results) && srvData.results.length > 0) {
+              queryResult = {
+                tracks: srvData.results.filter(
+                  (r: any) => r && r.videoId && typeof r.videoId === 'string' && r.videoId.length === 11
+                ),
+                status: 200,
+                isNetworkError: false,
+                errorMessageSpanish: null,
+              };
+            } else if (srvData?.apiError && !queryResult.errorMessageSpanish) {
+              const r = srvData.apiError.reason || '';
+              if (srvData.apiError.status === 403 || r === 'quotaExceeded') {
+                queryResult.errorMessageSpanish =
+                  lang === 'es'
+                    ? 'Error de cuota de YouTube API excedida (Límite diario alcanzado). Puedes agregar una clave propia en los ajustes.'
+                    : 'YouTube API daily quota exceeded. You can configure your own key in settings.';
+              } else if (srvData.apiError.status === 400 || r === 'badRequest') {
+                queryResult.errorMessageSpanish =
+                  lang === 'es'
+                    ? 'Clave de YouTube API no válida o restringida.'
+                    : 'Invalid or restricted YouTube API key.';
+              }
+            }
+          }
+        } catch {
+          // Continuar con el resultado anterior
         }
       }
 
-      // 2. Videos encontrados directamente en YouTube
-      for (const track of ytTracks) {
-        if (track.videoId && !seenVideoIds.has(track.videoId)) {
-          seenVideoIds.add(track.videoId);
-          combined.push(track);
-        }
-      }
+      // Si la consulta fue exitosa (status 200):
+      if (queryResult.status === 200) {
+        const combined: MusicTrack[] = [];
+        const seenVideoIds = new Set<string>();
 
-      if (combined.length > 0) {
-        setSearchResults(combined);
-        setSearchError(null);
-        setTimeout(() => {
-          songsListSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 100);
+        // 1. Videos directos encontrados en YouTube
+        for (const track of queryResult.tracks) {
+          if (track.videoId && !seenVideoIds.has(track.videoId)) {
+            seenVideoIds.add(track.videoId);
+            combined.push(track);
+          }
+        }
+
+        // 2. Coincidencias locales complementarias verificadas
+        for (const track of localMatches) {
+          if (track.videoId && !seenVideoIds.has(track.videoId)) {
+            seenVideoIds.add(track.videoId);
+            combined.push(track);
+          }
+        }
+
+        if (combined.length > 0) {
+          setSearchResults(combined);
+          setSearchError(null);
+          setTimeout(() => {
+            songsListSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 100);
+        } else {
+          // FALLBACK INTELIGENTE:
+          // Solo se activa si status fue 200 exitoso pero devolvió 0 elementos de video
+          setSearchResults(CURATED_DOMINO_YOUTUBE_TRACKS);
+          setSearchError(
+            lang === 'es'
+              ? `No se encontraron resultados específicos para "${cleanQuery}". Mostrando lista curada de respaldo (Salsa, Bachata, Baladas y Rancheras) con reproducción libre verificada para jugar sin pausas.`
+              : `No direct results for "${cleanQuery}". Showing verified curated fallback playlist (Salsa, Bachata, Baladas & Rancheras) with free playback.`
+          );
+        }
       } else {
-        // Fallback Automático con Lista Local / Playlists:
-        // Si la cuota de la API se agota o la búsqueda no retorna datos, muestra una lista curada de respaldo con listas de reproducción y mezclas de Salsa, Bachata, Baladas y Rancheras con IDs de videos verificados de reproducción libre.
-        setSearchResults(CURATED_DOMINO_YOUTUBE_TRACKS);
-        setSearchError(
-          lang === 'es'
-            ? `No se encontraron resultados específicos para "${query}". Mostrando lista curada de respaldo (Salsa, Bachata, Baladas y Rancheras) con reproducción libre verificada para jugar sin pausas.`
-            : `No direct results for "${query}". Showing verified curated fallback playlist (Salsa, Bachata, Baladas & Rancheras) with free playback.`
-        );
+        // En caso de fallo de red o error de clave/cuota (status !== 200):
+        // NUNCA activar el aviso de fallback ni mostrar la lista de respaldo simulando que no hay resultados
+        setSearchResults([]);
+        const finalErrorMsg =
+          queryResult.errorMessageSpanish ||
+          (lang === 'es'
+            ? 'Error al conectar con YouTube Data API v3. Verifica tu conexión o clave de API.'
+            : 'Error connecting to YouTube Data API v3. Check your connection or API key.');
+        setSearchError(finalErrorMsg);
       }
     } catch {
-      // Fallback Automático con Lista Local / Playlists
-      setSearchResults(CURATED_DOMINO_YOUTUBE_TRACKS);
+      // Fallo no controlado: mostrar error claro en español, nunca el fallback disimulado
+      setSearchResults([]);
       setSearchError(
         lang === 'es'
-          ? 'Error de conexión o cuota de búsqueda. Mostrando lista curada de respaldo verificada (Salsa, Bachata, Baladas y Rancheras).'
-          : 'Connection error or quota limit. Showing verified curated fallback playlist (Salsa, Bachata, Baladas & Rancheras).'
+          ? 'Error de red o conexión al buscar en YouTube. Por favor verifica tu conexión a internet.'
+          : 'Network error while searching YouTube. Please check your internet connection.'
       );
     } finally {
       setIsSearching(false);
@@ -819,15 +1035,126 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl text-stone-400 hover:text-stone-200 hover:bg-stone-800 transition-colors cursor-pointer"
-            title={t.close}
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowApiKeyConfig(!showApiKeyConfig)}
+              className={`p-2 rounded-xl border transition-colors cursor-pointer flex items-center justify-center ${
+                showApiKeyConfig
+                  ? 'bg-amber-500 text-stone-950 border-amber-400 shadow-sm'
+                  : hasCustomKey
+                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800 border-stone-800'
+              }`}
+              title={lang === 'es' ? 'Configurar clave de YouTube Data API v3' : 'Configure YouTube Data API v3 Key'}
+            >
+              <Key className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-xl text-stone-400 hover:text-stone-200 hover:bg-stone-800 transition-colors cursor-pointer"
+              title={t.close}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
+
+        {/* Panel discreto de configuración de clave YouTube API v3 */}
+        {showApiKeyConfig && (
+          <div className="bg-stone-950 border-b border-stone-800 px-4 py-3.5 space-y-3 animate-in fade-in slide-in-from-top-2 duration-150 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Key className="w-4 h-4 text-amber-400" />
+                <span className="text-xs font-bold text-stone-200 uppercase tracking-wide">
+                  {lang === 'es' ? 'Clave de YouTube Data API v3' : 'YouTube Data API v3 Key'}
+                </span>
+              </div>
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  hasCustomKey
+                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                    : 'bg-stone-800 text-stone-400 border-stone-700'
+                }`}
+              >
+                {hasCustomKey
+                  ? (lang === 'es' ? 'Clave propia activa' : 'Custom key active')
+                  : (lang === 'es' ? 'Clave pública integrada' : 'Default embedded key')}
+              </span>
+            </div>
+
+            <p className="text-[11px] text-stone-400 leading-relaxed">
+              {lang === 'es'
+                ? 'Búsqueda transparente en vivo con YouTube Data API v3 sin depender de variables ocultas. Puedes ingresar tu propia clave o probar la conexión actual.'
+                : 'Direct live search with YouTube Data API v3. You can test your key or enter your own Google Cloud key.'}
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <input
+                type="text"
+                value={apiKeyInput}
+                onChange={(e) => {
+                  setApiKeyInput(e.target.value);
+                  setKeyValidationStatus({ tested: false, valid: false, message: '', isTesting: false });
+                }}
+                placeholder="AIzaSy..."
+                className="flex-1 bg-stone-900 border border-stone-750 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-stone-100 font-mono focus:outline-none"
+              />
+              <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
+                <button
+                  type="button"
+                  disabled={keyValidationStatus.isTesting}
+                  onClick={() => handleTestApiKey(apiKeyInput)}
+                  className="flex-1 sm:flex-initial px-3 py-2 bg-stone-800 hover:bg-stone-750 active:bg-stone-700 text-stone-200 text-xs font-bold rounded-xl border border-stone-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 min-h-[38px]"
+                >
+                  {keyValidationStatus.isTesting ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5 text-stone-400" />
+                  )}
+                  <span>{lang === 'es' ? 'Probar' : 'Test'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveApiKey}
+                  className="flex-1 sm:flex-initial px-3 py-2 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-stone-950 text-xs font-bold rounded-xl shadow transition-colors flex items-center justify-center gap-1.5 cursor-pointer min-h-[38px]"
+                >
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  <span>{lang === 'es' ? 'Guardar' : 'Save'}</span>
+                </button>
+                {hasCustomKey && (
+                  <button
+                    type="button"
+                    onClick={handleResetApiKey}
+                    className="px-2.5 py-2 bg-stone-900 hover:bg-stone-800 text-stone-400 hover:text-red-300 text-xs font-medium rounded-xl border border-stone-800 transition-colors cursor-pointer min-h-[38px]"
+                    title={lang === 'es' ? 'Restablecer a clave original' : 'Restore original key'}
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {keyValidationStatus.tested && (
+              <div
+                className={`text-xs px-3 py-2 rounded-xl border flex items-center gap-2 ${
+                  keyValidationStatus.valid
+                    ? 'bg-emerald-950/40 text-emerald-300 border-emerald-500/30'
+                    : 'bg-red-950/40 text-red-300 border-red-500/30'
+                }`}
+              >
+                {keyValidationStatus.valid ? (
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                ) : (
+                  <X className="w-4 h-4 text-red-400 flex-shrink-0" />
+                )}
+                <span>{keyValidationStatus.message}</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Scrollable Container */}
         <div ref={modalScrollContainerRef} className="overflow-y-auto flex-1 p-3 sm:p-5 space-y-3.5">
@@ -1199,6 +1526,20 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
               <div className="p-3 text-xs text-amber-200 bg-amber-950/40 rounded-xl border border-amber-500/30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                 <p className="flex-1 text-left">{searchError}</p>
                 <div className="flex items-center gap-2 justify-end flex-wrap">
+                  {(searchError.toLowerCase().includes('cuota') ||
+                    searchError.toLowerCase().includes('clave') ||
+                    searchError.toLowerCase().includes('quota') ||
+                    searchError.toLowerCase().includes('key') ||
+                    searchError.toLowerCase().includes('api')) && (
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKeyConfig(true)}
+                      className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-stone-950 text-xs font-bold whitespace-nowrap cursor-pointer transition-colors flex items-center gap-1.5 min-h-[38px]"
+                    >
+                      <Key className="w-3.5 h-3.5" />
+                      <span>{lang === 'es' ? 'Ajustes de Clave API' : 'API Key Settings'}</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => handleSearchYouTube()}
