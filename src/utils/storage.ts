@@ -92,56 +92,129 @@ export function saveSettings(settings: GameSettings): void {
 }
 
 export function loadBackgroundTheme(): AppBackgroundTheme {
-  if (typeof window === 'undefined') return 'cielo-celeste-3d';
+  if (typeof window === 'undefined') return 'azul';
   try {
-    const direct = localStorage.getItem(STORAGE_KEYS.BACKGROUND) as string | null;
+    const direct =
+      (localStorage.getItem('domino_theme') as string | null) ||
+      (localStorage.getItem(STORAGE_KEYS.BACKGROUND) as string | null);
     if (direct) {
       if (
-        direct === 'cielo-celeste-3d' ||
-        direct === 'galaxia-rubi-3d' ||
-        direct === 'mesa-esmeralda-3d' ||
-        direct === 'neon-cyberpunk-3d' ||
-        direct === 'ondas-azul-lavanda'
+        direct === 'azul' ||
+        direct === 'verde' ||
+        direct === 'rojo' ||
+        direct === 'carbon' ||
+        direct === 'purpura' ||
+        direct === 'turquesa'
       ) {
         return direct;
       }
       // Backward compatibility mapping
-      if (direct === 'oro-imperial-3d') return 'ondas-azul-lavanda';
-      if (direct === 'cielo-estrellas') return 'cielo-celeste-3d';
-      if (direct === 'fieltro-verde') return 'mesa-esmeralda-3d';
-      if (direct === 'madera-noble') return 'ondas-azul-lavanda';
-      if (direct === 'noche-elegante') return 'galaxia-rubi-3d';
-      if (direct === 'fibra-carbono') return 'neon-cyberpunk-3d';
+      if (
+        direct === 'azul-casino' ||
+        direct === 'mesa-domino-icon' ||
+        direct === 'cielo-celeste-3d' ||
+        direct === 'cielo-estrellas'
+      ) {
+        return 'azul';
+      }
+      if (
+        direct === 'verde-grama' ||
+        direct === 'mesa-esmeralda-3d' ||
+        direct === 'fieltro-verde'
+      ) {
+        return 'verde';
+      }
+      if (
+        direct === 'rojo-jupiter' ||
+        direct === 'galaxia-rubi-3d' ||
+        direct === 'noche-elegante'
+      ) {
+        return 'rojo';
+      }
+      if (
+        direct === 'negro-carbon' ||
+        direct === 'neon-cyberpunk-3d' ||
+        direct === 'fibra-carbono'
+      ) {
+        return 'carbon';
+      }
+      if (
+        direct === 'purpura-galaxia' ||
+        direct === 'ondas-azul-lavanda' ||
+        direct === 'oro-imperial-3d' ||
+        direct === 'madera-noble'
+      ) {
+        return 'purpura';
+      }
+      if (direct === 'turquesa-caribe') {
+        return 'turquesa';
+      }
     }
     const rawSettings = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     if (rawSettings) {
       const parsed = JSON.parse(rawSettings);
       const th = parsed.backgroundTheme;
       if (
-        th === 'cielo-celeste-3d' ||
-        th === 'galaxia-rubi-3d' ||
-        th === 'mesa-esmeralda-3d' ||
-        th === 'neon-cyberpunk-3d' ||
-        th === 'ondas-azul-lavanda'
+        th === 'azul' ||
+        th === 'verde' ||
+        th === 'rojo' ||
+        th === 'carbon' ||
+        th === 'purpura' ||
+        th === 'turquesa'
       ) {
         return th;
       }
-      if (th === 'oro-imperial-3d') return 'ondas-azul-lavanda';
-      if (th === 'cielo-estrellas') return 'cielo-celeste-3d';
-      if (th === 'fieltro-verde') return 'mesa-esmeralda-3d';
-      if (th === 'madera-noble') return 'ondas-azul-lavanda';
-      if (th === 'noche-elegante') return 'galaxia-rubi-3d';
-      if (th === 'fibra-carbono') return 'neon-cyberpunk-3d';
+      if (
+        th === 'azul-casino' ||
+        th === 'mesa-domino-icon' ||
+        th === 'cielo-celeste-3d' ||
+        th === 'cielo-estrellas'
+      ) {
+        return 'azul';
+      }
+      if (
+        th === 'verde-grama' ||
+        th === 'mesa-esmeralda-3d' ||
+        th === 'fieltro-verde'
+      ) {
+        return 'verde';
+      }
+      if (
+        th === 'rojo-jupiter' ||
+        th === 'galaxia-rubi-3d' ||
+        th === 'noche-elegante'
+      ) {
+        return 'rojo';
+      }
+      if (
+        th === 'negro-carbon' ||
+        th === 'neon-cyberpunk-3d' ||
+        th === 'fibra-carbono'
+      ) {
+        return 'carbon';
+      }
+      if (
+        th === 'purpura-galaxia' ||
+        th === 'ondas-azul-lavanda' ||
+        th === 'oro-imperial-3d' ||
+        th === 'madera-noble'
+      ) {
+        return 'purpura';
+      }
+      if (th === 'turquesa-caribe') {
+        return 'turquesa';
+      }
     }
   } catch {
     // Fallback on error
   }
-  return 'cielo-celeste-3d';
+  return 'azul';
 }
 
 export function saveBackgroundTheme(theme: AppBackgroundTheme): void {
   if (typeof window === 'undefined') return;
   try {
+    localStorage.setItem('domino_theme', theme);
     localStorage.setItem(STORAGE_KEYS.BACKGROUND, theme);
     // Also sync in settings object if exists
     const rawSettings = localStorage.getItem(STORAGE_KEYS.SETTINGS);
@@ -402,83 +475,21 @@ export function saveMusicAutoplay(enabled: boolean): void {
   }
 }
 
-// ==========================================
-// YOUTUBE DATA API V3 KEY STORAGE & RESOLUTION
-// ==========================================
-export const YOUTUBE_KEY_STORAGE = 'domino_youtube_api_key_v1';
-export const DEFAULT_EMBEDDED_YOUTUBE_KEY = 'AIzaSyArJug73pDTiE8AvHu9IY8OB_xZ7X_kJro';
-
 /**
- * Obtiene la clave de YouTube Data API v3 activa.
- * Prioridad:
- * 1. Clave guardada por el usuario en el dispositivo (localStorage)
- * 2. Variable inyectada en tiempo de compilación (VITE_YOUTUBE_API_KEY)
- * 3. Clave embebida por defecto garantizada para web móvil
+ * Obtiene la clave de YouTube Data API v3 desde las variables de entorno de los Secrets.
+ * Consumo interno y silencioso.
  */
 export function getYouTubeApiKey(): string {
-  if (typeof window !== 'undefined') {
-    try {
-      const saved = localStorage.getItem(YOUTUBE_KEY_STORAGE);
-      if (saved && saved.trim().length > 10) {
-        return saved.trim();
-      }
-    } catch {
-      // Ignore
-    }
-  }
-
   const envKey =
     (import.meta as any).env?.VITE_YOUTUBE_API_KEY ||
     (typeof process !== 'undefined'
       ? (process as any).env?.YOUTUBE_API_KEY || (process as any).env?.VITE_YOUTUBE_API_KEY
       : '');
 
-  if (envKey && typeof envKey === 'string' && envKey.trim().length > 10) {
+  if (envKey && typeof envKey === 'string' && envKey.trim()) {
     return envKey.trim();
   }
 
-  return DEFAULT_EMBEDDED_YOUTUBE_KEY;
-}
-
-/**
- * Guarda una clave de YouTube personalizada en el almacenamiento local del dispositivo.
- */
-export function saveYouTubeApiKey(key: string): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const trimmed = (key || '').trim();
-    if (!trimmed) {
-      localStorage.removeItem(YOUTUBE_KEY_STORAGE);
-    } else {
-      localStorage.setItem(YOUTUBE_KEY_STORAGE, trimmed);
-    }
-  } catch {
-    // Ignore storage quota
-  }
-}
-
-/**
- * Comprueba si el usuario tiene una clave personalizada guardada
- */
-export function hasCustomYouTubeApiKey(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    const saved = localStorage.getItem(YOUTUBE_KEY_STORAGE);
-    return Boolean(saved && saved.trim().length > 10);
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Elimina la clave personalizada y restaura la clave por defecto
- */
-export function resetYouTubeApiKey(): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.removeItem(YOUTUBE_KEY_STORAGE);
-  } catch {
-    // Ignore
-  }
+  return '';
 }
 

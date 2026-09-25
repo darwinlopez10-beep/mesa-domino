@@ -46,7 +46,7 @@ async function fetchYouTubeTracks(query: string, customKey?: string): Promise<{ 
     (customKey && customKey.trim()) ||
     process.env.YOUTUBE_API_KEY ||
     process.env.VITE_YOUTUBE_API_KEY ||
-    'AIzaSyArJug73pDTiE8AvHu9IY8OB_xZ7X_kJro';
+    '';
 
   if (youtubeApiKey) {
     try {

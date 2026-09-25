@@ -5,6 +5,19 @@ export type LanguageSetting = 'auto' | 'es' | 'en';
 export type TrancaRule = 'sum_opponent' | 'point_difference';
 
 export type AppBackgroundTheme =
+  | 'azul'
+  | 'verde'
+  | 'rojo'
+  | 'carbon'
+  | 'purpura'
+  | 'turquesa'
+  | 'azul-casino'
+  | 'verde-grama'
+  | 'rojo-jupiter'
+  | 'negro-carbon'
+  | 'purpura-galaxia'
+  | 'turquesa-caribe'
+  | 'mesa-domino-icon'
   | 'cielo-celeste-3d'
   | 'galaxia-rubi-3d'
   | 'mesa-esmeralda-3d'

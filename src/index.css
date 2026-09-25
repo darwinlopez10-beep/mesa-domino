@@ -1,1 +1,29 @@
 @import "tailwindcss";
+
+html, body {
+  min-height: 100%;
+  background-color: #0f172a;
+}
+
+.domino-watermark-container {
+  position: absolute;
+  top: 55%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.domino-watermark-img {
+  width: 200px;
+  max-width: 50vw;
+  height: auto;
+  mix-blend-mode: screen; /* Elimina por completo los tonos negros y oscuros, dejando la ficha y las estrellas amarillas 100% transparentes sobre el degradado */
+  filter: drop-shadow(0 0 18px rgba(255, 215, 0, 0.45)) contrast(1.15) brightness(1.05);
+  opacity: 0.95;
+}
+

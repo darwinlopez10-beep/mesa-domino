@@ -10,7 +10,7 @@ import { MatchHistoryModal } from './components/MatchHistoryModal';
 import { VictoryModal } from './components/VictoryModal';
 import { MusicPlayerModal, CURATED_DOMINO_YOUTUBE_TRACKS } from './components/MusicPlayerModal';
 import { MiniMusicPlayer } from './components/MiniMusicPlayer';
-import { AppBackground } from './components/AppBackground';
+import { AppBackground, applyThemeToDocument, getThemeGradient } from './components/AppBackground';
 import {
   SILENT_AUDIO_DATA_URI,
   syncMediaSession,
@@ -126,9 +126,15 @@ export default function App() {
     return currentSettings.backgroundTheme || loadBackgroundTheme();
   });
 
+  // Apply theme gradient directly to document.body and document.documentElement in real time
+  useEffect(() => {
+    applyThemeToDocument(backgroundTheme);
+  }, [backgroundTheme]);
+
   const handleSelectBackgroundTheme = useCallback((theme: AppBackgroundTheme) => {
     setBackgroundTheme(theme);
     saveBackgroundTheme(theme);
+    applyThemeToDocument(theme);
     setSettings((prev) => {
       const updated = { ...prev, backgroundTheme: theme };
       saveSettings(updated);
@@ -991,9 +997,43 @@ export default function App() {
   };
 
   return (
-    <div className="relative min-h-screen text-stone-100 flex flex-col font-sans selection:bg-amber-500 selection:text-stone-950">
-      {/* Capa de fondo con 5 temas visuales y overlay de alto contraste */}
+    <div
+      style={{ background: getThemeGradient(backgroundTheme) }}
+      className="relative min-h-screen text-stone-100 flex flex-col font-sans selection:bg-amber-500 selection:text-stone-950 transition-colors duration-300"
+    >
+      {/* Capa de fondo con los 6 degradados temáticos */}
       <AppBackground theme={backgroundTheme} />
+
+      {/* Marca de agua / Ficha 3D con estrellas flotando en la pantalla principal */}
+      <div
+        className="domino-watermark-container"
+        style={{
+          position: 'absolute',
+          top: '55%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          pointerEvents: 'none',
+          zIndex: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '100%',
+        }}
+      >
+        <img
+          src="/icon.png"
+          alt="Logo Dominó 3D"
+          className="domino-watermark-img"
+          style={{
+            width: '200px',
+            maxWidth: '50vw',
+            height: 'auto',
+            mixBlendMode: 'screen',
+            filter: 'drop-shadow(0 0 18px rgba(255, 215, 0, 0.45)) contrast(1.15) brightness(1.05)',
+            opacity: 0.95,
+          }}
+        />
+      </div>
 
       {/* Top Header */}
       <ScoreHeader

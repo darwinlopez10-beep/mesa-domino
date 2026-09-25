@@ -21,6 +21,11 @@ export const RoundHistory: React.FC<RoundHistoryProps> = ({
   const isTwoTeams = players.length === 2;
   const t = TRANSLATIONS[lang];
 
+  // Si no hay manos registradas aún, ocultar por completo el contenedor para lucir la ficha de fondo
+  if (rounds.length === 0) {
+    return null;
+  }
+
   const getBadgeForReason = (reason: string) => {
     switch (reason) {
       case 'tranca':
@@ -50,9 +55,21 @@ export const RoundHistory: React.FC<RoundHistoryProps> = ({
   };
 
   return (
-    <section className="bg-slate-950/75 backdrop-blur-md rounded-2xl border border-slate-700/60 shadow-2xl overflow-hidden">
+    <section
+      style={{
+        background: 'rgba(10, 15, 30, 0.45)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+      }}
+      className="rounded-2xl border border-slate-700/60 shadow-2xl overflow-hidden"
+    >
       {/* Header of Round History */}
-      <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-slate-700/60 bg-slate-900/60">
+      <div
+        className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-slate-700/50"
+        style={{
+          background: 'rgba(10, 15, 30, 0.25)',
+        }}
+      >
         <div className="flex items-center gap-2">
           <h3 className="font-bold text-stone-100 font-display text-sm sm:text-base">
             {t.roundsHistory}
@@ -69,29 +86,18 @@ export const RoundHistory: React.FC<RoundHistoryProps> = ({
           </span>
         </div>
 
-        {rounds.length > 0 && (
-          <button
-            id="btn-undo-last-round"
-            onClick={onUndoLastRound}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-750 text-stone-200 text-xs font-semibold border border-stone-700 transition-all active:scale-95 cursor-pointer"
-            title={t.undoLastHand}
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-            <span>{t.undoLastHand}</span>
-          </button>
-        )}
+        <button
+          id="btn-undo-last-round"
+          onClick={onUndoLastRound}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-750 text-stone-200 text-xs font-semibold border border-stone-700 transition-all active:scale-95 cursor-pointer"
+          title={t.undoLastHand}
+        >
+          <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+          <span>{t.undoLastHand}</span>
+        </button>
       </div>
 
-      {rounds.length === 0 ? (
-        <div className="p-8 text-center text-stone-500">
-          <p className="text-sm font-medium">{t.noRoundsYet}</p>
-          <p className="text-xs text-stone-600 mt-1">
-            {lang === 'es'
-              ? 'Toca el cuadro del jugador para anotar los puntos de la mano.'
-              : 'Tap a player score card to record hand points.'}
-          </p>
-        </div>
-      ) : isTwoTeams ? (
+      {isTwoTeams ? (
         /* Classic 2-column domino notebook layout (Nosotros vs Ellos) */
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm border-collapse">

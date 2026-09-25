@@ -31,9 +31,6 @@ import {
   Minus,
   Radio,
   Repeat,
-  Key,
-  ShieldCheck,
-  RefreshCw,
 } from 'lucide-react';
 import { MusicHistoryItem, MusicTrack } from '../types';
 import { AppLanguage, TRANSLATIONS } from '../utils/i18n';
@@ -43,10 +40,6 @@ import {
   deleteSongFromHistory,
   clearMusicHistory,
   getYouTubeApiKey,
-  saveYouTubeApiKey,
-  hasCustomYouTubeApiKey,
-  resetYouTubeApiKey,
-  DEFAULT_EMBEDDED_YOUTUBE_KEY,
 } from '../utils/storage';
 
 interface MusicPlayerModalProps {
@@ -431,124 +424,6 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
   const [history, setHistory] = useState<MusicHistoryItem[]>(() => musicHistory || loadMusicHistory());
   const [isConfirmClearOpen, setIsConfirmClearOpen] = useState(false);
 
-  // Configuración discreta de clave de YouTube API v3
-  const [showApiKeyConfig, setShowApiKeyConfig] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState(() => getYouTubeApiKey());
-  const [hasCustomKey, setHasCustomKey] = useState(() => hasCustomYouTubeApiKey());
-  const [keyValidationStatus, setKeyValidationStatus] = useState<{
-    tested: boolean;
-    valid: boolean;
-    message: string;
-    isTesting: boolean;
-  }>({
-    tested: false,
-    valid: false,
-    message: '',
-    isTesting: false,
-  });
-
-  const handleTestApiKey = async (keyToTest: string) => {
-    const trimmed = (keyToTest || '').trim();
-    if (!trimmed) {
-      setKeyValidationStatus({
-        tested: true,
-        valid: false,
-        message: lang === 'es' ? 'Ingresa una clave de API antes de probar.' : 'Enter an API key before testing.',
-        isTesting: false,
-      });
-      return;
-    }
-
-    setKeyValidationStatus((prev) => ({ ...prev, isTesting: true, message: '' }));
-    try {
-      const testRes = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=musica&key=${trimmed}`,
-        { signal: AbortSignal.timeout(6500) }
-      );
-      if (testRes.ok) {
-        setKeyValidationStatus({
-          tested: true,
-          valid: true,
-          message:
-            lang === 'es'
-              ? '✓ ¡Clave de YouTube Data API v3 válida y con cuota activa disponible!'
-              : '✓ YouTube Data API v3 key is valid and has active quota!',
-          isTesting: false,
-        });
-      } else {
-        const errJson = await testRes.json().catch(() => null);
-        const errObj = errJson?.error;
-        const reason = errObj?.errors?.[0]?.reason || errObj?.details?.[0]?.reason || '';
-        const msg = errObj?.message || '';
-
-        let errSpanish = '';
-        if (testRes.status === 403 || reason === 'quotaExceeded' || msg.toLowerCase().includes('quota')) {
-          errSpanish = 'Error 403: Cuota diaria de YouTube API excedida para esta clave.';
-        } else if (
-          testRes.status === 400 ||
-          reason === 'API_KEY_INVALID' ||
-          reason === 'keyInvalid' ||
-          msg.toLowerCase().includes('api key')
-        ) {
-          errSpanish = 'Error 400: Clave de YouTube API no válida o restringida.';
-        } else if (reason === 'ipRefererBlocked' || msg.toLowerCase().includes('referer')) {
-          errSpanish = 'Error 403: Clave de YouTube restringida por referente/dominio.';
-        } else if (reason === 'accessNotConfigured') {
-          errSpanish = 'Error 403: La YouTube Data API v3 no está habilitada en Google Cloud para esta clave.';
-        } else {
-          errSpanish = `Error (${testRes.status}): ${msg || 'Error al validar clave'}`;
-        }
-
-        setKeyValidationStatus({
-          tested: true,
-          valid: false,
-          message: errSpanish,
-          isTesting: false,
-        });
-      }
-    } catch {
-      setKeyValidationStatus({
-        tested: true,
-        valid: false,
-        message:
-          lang === 'es'
-            ? 'Error de red o conexión al validar la clave con Google.'
-            : 'Network error validating key with Google.',
-        isTesting: false,
-      });
-    }
-  };
-
-  const handleSaveApiKey = () => {
-    const trimmed = apiKeyInput.trim();
-    if (trimmed) {
-      saveYouTubeApiKey(trimmed);
-      setHasCustomKey(true);
-      setKeyValidationStatus({
-        tested: true,
-        valid: true,
-        message: lang === 'es' ? '✓ Clave guardada con éxito en este dispositivo.' : '✓ Key successfully saved on this device.',
-        isTesting: false,
-      });
-    }
-  };
-
-  const handleResetApiKey = () => {
-    resetYouTubeApiKey();
-    const defaultKey = getYouTubeApiKey();
-    setApiKeyInput(defaultKey);
-    setHasCustomKey(false);
-    setKeyValidationStatus({
-      tested: true,
-      valid: true,
-      message:
-        lang === 'es'
-          ? '✓ Clave restablecida a la original integrada.'
-          : '✓ Restored to default embedded key.',
-      isTesting: false,
-    });
-  };
-
   // Sincronizar si cambia desde props
   useEffect(() => {
     if (musicHistory) {
@@ -837,8 +712,8 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
         if (directRes.status === 403 || reason === 'quotaExceeded' || msg.toLowerCase().includes('quota')) {
           errSpanish =
             lang === 'es'
-              ? 'Error de cuota de YouTube API excedida (Límite diario alcanzado). Puedes agregar una clave propia en la configuración.'
-              : 'YouTube API daily quota exceeded. You can add your own key in settings.';
+              ? 'Error de cuota de YouTube API excedida (Límite diario alcanzado).'
+              : 'YouTube API daily quota exceeded.';
         } else if (
           directRes.status === 400 ||
           reason === 'API_KEY_INVALID' ||
@@ -847,8 +722,8 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
         ) {
           errSpanish =
             lang === 'es'
-              ? 'Clave de YouTube API no válida o restringida. Verifica o actualiza tu clave en la configuración.'
-              : 'Invalid or restricted YouTube API key. Please check your key in settings.';
+              ? 'Clave de YouTube API no válida o restringida.'
+              : 'Invalid or restricted YouTube API key.';
         } else if (reason === 'ipRefererBlocked' || msg.toLowerCase().includes('referer')) {
           errSpanish =
             lang === 'es'
@@ -909,8 +784,8 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
               if (srvData.apiError.status === 403 || r === 'quotaExceeded') {
                 queryResult.errorMessageSpanish =
                   lang === 'es'
-                    ? 'Error de cuota de YouTube API excedida (Límite diario alcanzado). Puedes agregar una clave propia en los ajustes.'
-                    : 'YouTube API daily quota exceeded. You can configure your own key in settings.';
+                    ? 'Error de cuota de YouTube API excedida (Límite diario alcanzado).'
+                    : 'YouTube API daily quota exceeded.';
               } else if (srvData.apiError.status === 400 || r === 'badRequest') {
                 queryResult.errorMessageSpanish =
                   lang === 'es'
@@ -1035,126 +910,15 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setShowApiKeyConfig(!showApiKeyConfig)}
-              className={`p-2 rounded-xl border transition-colors cursor-pointer flex items-center justify-center ${
-                showApiKeyConfig
-                  ? 'bg-amber-500 text-stone-950 border-amber-400 shadow-sm'
-                  : hasCustomKey
-                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
-                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800 border-stone-800'
-              }`}
-              title={lang === 'es' ? 'Configurar clave de YouTube Data API v3' : 'Configure YouTube Data API v3 Key'}
-            >
-              <Key className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 rounded-xl text-stone-400 hover:text-stone-200 hover:bg-stone-800 transition-colors cursor-pointer"
-              title={t.close}
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-xl text-stone-400 hover:text-stone-200 hover:bg-stone-800 transition-colors cursor-pointer"
+            title={t.close}
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
-
-        {/* Panel discreto de configuración de clave YouTube API v3 */}
-        {showApiKeyConfig && (
-          <div className="bg-stone-950 border-b border-stone-800 px-4 py-3.5 space-y-3 animate-in fade-in slide-in-from-top-2 duration-150 flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Key className="w-4 h-4 text-amber-400" />
-                <span className="text-xs font-bold text-stone-200 uppercase tracking-wide">
-                  {lang === 'es' ? 'Clave de YouTube Data API v3' : 'YouTube Data API v3 Key'}
-                </span>
-              </div>
-              <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                  hasCustomKey
-                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                    : 'bg-stone-800 text-stone-400 border-stone-700'
-                }`}
-              >
-                {hasCustomKey
-                  ? (lang === 'es' ? 'Clave propia activa' : 'Custom key active')
-                  : (lang === 'es' ? 'Clave pública integrada' : 'Default embedded key')}
-              </span>
-            </div>
-
-            <p className="text-[11px] text-stone-400 leading-relaxed">
-              {lang === 'es'
-                ? 'Búsqueda transparente en vivo con YouTube Data API v3 sin depender de variables ocultas. Puedes ingresar tu propia clave o probar la conexión actual.'
-                : 'Direct live search with YouTube Data API v3. You can test your key or enter your own Google Cloud key.'}
-            </p>
-
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <input
-                type="text"
-                value={apiKeyInput}
-                onChange={(e) => {
-                  setApiKeyInput(e.target.value);
-                  setKeyValidationStatus({ tested: false, valid: false, message: '', isTesting: false });
-                }}
-                placeholder="AIzaSy..."
-                className="flex-1 bg-stone-900 border border-stone-750 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-stone-100 font-mono focus:outline-none"
-              />
-              <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
-                <button
-                  type="button"
-                  disabled={keyValidationStatus.isTesting}
-                  onClick={() => handleTestApiKey(apiKeyInput)}
-                  className="flex-1 sm:flex-initial px-3 py-2 bg-stone-800 hover:bg-stone-750 active:bg-stone-700 text-stone-200 text-xs font-bold rounded-xl border border-stone-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 min-h-[38px]"
-                >
-                  {keyValidationStatus.isTesting ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-3.5 h-3.5 text-stone-400" />
-                  )}
-                  <span>{lang === 'es' ? 'Probar' : 'Test'}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveApiKey}
-                  className="flex-1 sm:flex-initial px-3 py-2 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-stone-950 text-xs font-bold rounded-xl shadow transition-colors flex items-center justify-center gap-1.5 cursor-pointer min-h-[38px]"
-                >
-                  <Check className="w-3.5 h-3.5 stroke-[3]" />
-                  <span>{lang === 'es' ? 'Guardar' : 'Save'}</span>
-                </button>
-                {hasCustomKey && (
-                  <button
-                    type="button"
-                    onClick={handleResetApiKey}
-                    className="px-2.5 py-2 bg-stone-900 hover:bg-stone-800 text-stone-400 hover:text-red-300 text-xs font-medium rounded-xl border border-stone-800 transition-colors cursor-pointer min-h-[38px]"
-                    title={lang === 'es' ? 'Restablecer a clave original' : 'Restore original key'}
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {keyValidationStatus.tested && (
-              <div
-                className={`text-xs px-3 py-2 rounded-xl border flex items-center gap-2 ${
-                  keyValidationStatus.valid
-                    ? 'bg-emerald-950/40 text-emerald-300 border-emerald-500/30'
-                    : 'bg-red-950/40 text-red-300 border-red-500/30'
-                }`}
-              >
-                {keyValidationStatus.valid ? (
-                  <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                ) : (
-                  <X className="w-4 h-4 text-red-400 flex-shrink-0" />
-                )}
-                <span>{keyValidationStatus.message}</span>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Scrollable Container */}
         <div ref={modalScrollContainerRef} className="overflow-y-auto flex-1 p-3 sm:p-5 space-y-3.5">
@@ -1526,20 +1290,6 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
               <div className="p-3 text-xs text-amber-200 bg-amber-950/40 rounded-xl border border-amber-500/30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                 <p className="flex-1 text-left">{searchError}</p>
                 <div className="flex items-center gap-2 justify-end flex-wrap">
-                  {(searchError.toLowerCase().includes('cuota') ||
-                    searchError.toLowerCase().includes('clave') ||
-                    searchError.toLowerCase().includes('quota') ||
-                    searchError.toLowerCase().includes('key') ||
-                    searchError.toLowerCase().includes('api')) && (
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKeyConfig(true)}
-                      className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-stone-950 text-xs font-bold whitespace-nowrap cursor-pointer transition-colors flex items-center gap-1.5 min-h-[38px]"
-                    >
-                      <Key className="w-3.5 h-3.5" />
-                      <span>{lang === 'es' ? 'Ajustes de Clave API' : 'API Key Settings'}</span>
-                    </button>
-                  )}
                   <button
                     type="button"
                     onClick={() => handleSearchYouTube()}

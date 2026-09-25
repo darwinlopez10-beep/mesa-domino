@@ -188,7 +188,21 @@ export interface Translations {
   resetSettings: string;
   changeBackground: string;
   changeBackgroundDesc: string;
-  bgCieloCeleste: string;
+  bgAzulCasino: string;
+  bgAzulCasinoDesc: string;
+  bgVerdeGrama: string;
+  bgVerdeGramaDesc: string;
+  bgRojoJupiter: string;
+  bgRojoJupiterDesc: string;
+  bgNegroCarbon: string;
+  bgNegroCarbonDesc: string;
+  bgPurpuraGalaxia: string;
+  bgPurpuraGalaxiaDesc: string;
+  bgTurquesaCaribe: string;
+  bgTurquesaCaribeDesc: string;
+  bgDominoOficial?: string;
+  bgDominoOficialDesc?: string;
+  bgCieloCeleste?: string;
   bgCieloCelesteDesc: string;
   bgGalaxiaRubi: string;
   bgGalaxiaRubiDesc: string;
@@ -367,7 +381,21 @@ export const TRANSLATIONS: Record<AppLanguage, Translations> = {
     saveSettings: 'Guardar Ajustes',
     resetSettings: 'Restaurar Valores',
     changeBackground: 'Cambiar Fondo',
-    changeBackgroundDesc: 'Elige un ambiente 3D con colores vivos y efectos de profundidad',
+    changeBackgroundDesc: 'Elige entre los 6 fondos oficiales con degradados envolventes',
+    bgAzulCasino: 'Azul Casino Real',
+    bgAzulCasinoDesc: 'Degradado envolvente azul zafiro a noche oscura de casino.',
+    bgVerdeGrama: 'Verde Grama Torneo',
+    bgVerdeGramaDesc: 'Clásico paño verde esmeralda profundo de mesa de torneo.',
+    bgRojoJupiter: 'Rojo Júpiter Cósmico',
+    bgRojoJupiterDesc: 'Rojo carmesí ardiente de alta pasión y contraste.',
+    bgNegroCarbon: 'Negro Carbón Élite',
+    bgNegroCarbonDesc: 'Pizarra oscuro sobrio y fibra de carbón mate de lujo.',
+    bgPurpuraGalaxia: 'Púrpura Galaxia 3D',
+    bgPurpuraGalaxiaDesc: 'Mística nebulosa púrpura y violeta galáctico.',
+    bgTurquesaCaribe: 'Turquesa Caribe',
+    bgTurquesaCaribeDesc: 'Azul cian tropical y refrescante de mar caribeño.',
+    bgDominoOficial: 'Mesa & Dominó Oficial',
+    bgDominoOficialDesc: 'Fondo exclusivo con el icono oficial y degradado nocturno elegante.',
     bgCieloCeleste: 'Cielo Celeste 3D',
     bgCieloCelesteDesc: 'Azul cielo vibrante y luminoso con nubes esponjosas en capas 3D y estrellas brillantes con destellos luminosos.',
     bgGalaxiaRubi: 'Galaxia Rubí 3D',
@@ -545,7 +573,21 @@ export const TRANSLATIONS: Record<AppLanguage, Translations> = {
     saveSettings: 'Save Settings',
     resetSettings: 'Reset to Defaults',
     changeBackground: 'Change Background',
-    changeBackgroundDesc: 'Choose a vivid 3D environment with depth and volumetric lighting',
+    changeBackgroundDesc: 'Choose among the 6 official themes with immersive radial gradients',
+    bgAzulCasino: 'Royal Casino Blue',
+    bgAzulCasinoDesc: 'Deep royal blue to midnight casino dark gradient.',
+    bgVerdeGrama: 'Tournament Grass Green',
+    bgVerdeGramaDesc: 'Classic emerald tournament domino table green.',
+    bgRojoJupiter: 'Cosmic Jupiter Red',
+    bgRojoJupiterDesc: 'Fiery crimson and rich scarlet high-contrast glow.',
+    bgNegroCarbon: 'Elite Carbon Black',
+    bgNegroCarbonDesc: 'Sleek luxury charcoal slate and carbon black.',
+    bgPurpuraGalaxia: '3D Galaxy Purple',
+    bgPurpuraGalaxiaDesc: 'Mystic deep violet and cosmic purple nebula.',
+    bgTurquesaCaribe: 'Caribbean Turquoise',
+    bgTurquesaCaribeDesc: 'Tropical and refreshing Caribbean ocean cyan.',
+    bgDominoOficial: 'Official Domino Table',
+    bgDominoOficialDesc: 'Exclusive background with the official icon and elegant dark navy gradient.',
     bgCieloCeleste: 'Celestial Sky 3D',
     bgCieloCelesteDesc: 'Vivid luminous sky blue with fluffy 3D layered clouds and sparkling stars with bright flares.',
     bgGalaxiaRubi: 'Ruby Galaxy 3D',
