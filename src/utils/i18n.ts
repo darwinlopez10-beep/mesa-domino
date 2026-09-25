@@ -200,6 +200,12 @@ export interface Translations {
   bgOndasAzulLavandaDesc: string;
   bgOroImperial?: string;
   bgOroImperialDesc?: string;
+  // Share App
+  shareApp: string;
+  shareAppDesc: string;
+  shareAppBtn: string;
+  shareAppSuccess: string;
+  shareAppCopied: string;
   // Victory Modal
   victoryTitle: string;
   matchChampion: string;
@@ -374,6 +380,12 @@ export const TRANSLATIONS: Record<AppLanguage, Translations> = {
     bgOndasAzulLavandaDesc: 'Degradado fluido con capas de ondas curvadas en azul cielo, lavanda y azul ultramar profundo con efecto 3D relajante.',
     bgOroImperial: 'Ondas Suaves Azul y Lavanda',
     bgOroImperialDesc: 'Degradado fluido con capas de ondas curvadas en azul cielo, lavanda y azul ultramar profundo con efecto 3D relajante.',
+    // Share App
+    shareApp: 'Compartir Aplicación',
+    shareAppDesc: 'Comparte el enlace oficial de Google Play Store con tus amigos y rivales de juego.',
+    shareAppBtn: 'Compartir Aplicación',
+    shareAppSuccess: '¡Gracias por compartir el anotador oficial!',
+    shareAppCopied: '¡Enlace de Google Play copiado al portapapeles!',
     // Victory Modal
     victoryTitle: '¡Victoria de la Partida!',
     matchChampion: '¡Ha ganado la partida!',
@@ -546,6 +558,12 @@ export const TRANSLATIONS: Record<AppLanguage, Translations> = {
     bgOndasAzulLavandaDesc: 'Fluid gradient with layered curved waves in sky blue, lavender, and deep ultramarine with calming 3D depth.',
     bgOroImperial: 'Soft Blue & Lavender Waves',
     bgOroImperialDesc: 'Fluid gradient with layered curved waves in sky blue, lavender, and deep ultramarine with calming 3D depth.',
+    // Share App
+    shareApp: 'Share Application',
+    shareAppDesc: 'Official Google Play Store link to share the scorekeeper with your friends and opponents.',
+    shareAppBtn: 'Share Application',
+    shareAppSuccess: 'Thank you for sharing the official scorekeeper!',
+    shareAppCopied: 'Google Play link copied to clipboard!',
     // Victory Modal
     victoryTitle: 'Match Victory!',
     matchChampion: 'Won the match!',

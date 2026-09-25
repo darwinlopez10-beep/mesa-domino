@@ -1,9 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Users, Target, Shield, Sparkles, Volume2, Check, Globe, Sun, Palette } from 'lucide-react';
+import { X, Settings, Users, Target, Shield, Sparkles, Volume2, Check, Globe, Sun, Palette, Share2, ExternalLink } from 'lucide-react';
 import { AppBackgroundTheme, GameMode, GameSettings, LanguageSetting, TrancaRule } from '../types';
 import { AppLanguage, TRANSLATIONS, resolveActiveLanguage, saveLanguageSetting } from '../utils/i18n';
 import { BACKGROUND_THEME_OPTIONS, BackgroundThumbnailCard } from './AppBackground';
 import { loadBackgroundTheme, saveBackgroundTheme } from '../utils/storage';
+
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.lopezdigitalmedia.anotadordomino';
+
+const GooglePlayIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3.6 1.8C3.2 2.2 3 2.8 3 3.6V20.4C3 21.2 3.2 21.8 3.6 22.2L12.3 12L3.6 1.8Z" fill="#2196F3" />
+    <path d="M15.4 8.9L12.3 12L3.6 1.8C4.1 1.5 4.8 1.4 5.5 1.8L15.4 8.9Z" fill="#4CAF50" />
+    <path d="M12.3 12L15.4 15.1L5.5 22.2C4.8 22.6 4.1 22.5 3.6 22.2L12.3 12Z" fill="#F44336" />
+    <path d="M20.5 11.2L15.4 8.9L12.3 12L15.4 15.1L20.5 12.8C21.5 12.2 21.5 11.8 20.5 11.2Z" fill="#FFC107" />
+  </svg>
+);
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -84,6 +95,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [keepScreenAwake, setKeepScreenAwake] = useState<boolean>(
     currentSettings.keepScreenAwake !== undefined ? currentSettings.keepScreenAwake : true
   );
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -120,6 +132,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     saveBackgroundTheme(theme);
     if (onSelectBackgroundTheme) {
       onSelectBackgroundTheme(theme);
+    }
+  };
+
+  const handleShareApp = async () => {
+    const shareTitle = 'Mesa & Dominó - Anotador';
+    const shareText =
+      effectiveLang === 'es'
+        ? '¡Descarga el anotador oficial de dominó en Google Play!'
+        : 'Download the official domino scorekeeper on Google Play!';
+
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: PLAY_STORE_URL,
+        });
+        setShareFeedback(t.shareAppSuccess);
+        setTimeout(() => setShareFeedback(null), 3500);
+        return;
+      } catch (err: any) {
+        if (err?.name === 'AbortError') {
+          return;
+        }
+      }
+    }
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(PLAY_STORE_URL);
+        setShareFeedback(t.shareAppCopied);
+        setTimeout(() => setShareFeedback(null), 3500);
+      } else {
+        window.open(PLAY_STORE_URL, '_blank', 'noopener,noreferrer');
+      }
+    } catch {
+      window.open(PLAY_STORE_URL, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -559,6 +608,57 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onChange={(e) => setKeepScreenAwake(e.target.checked)}
                 className="w-4 h-4 accent-amber-500 cursor-pointer flex-shrink-0"
               />
+            </div>
+          </div>
+
+          {/* Compartir Aplicación (Google Play Store) */}
+          <div className="p-3 bg-slate-900/85 backdrop-blur-md rounded-2xl border border-slate-750/90 shadow-lg">
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                <Share2 className="w-4 h-4 text-emerald-400" />
+                <span>{t.shareApp}</span>
+              </label>
+              <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                Google Play
+              </span>
+            </div>
+
+            <p className="text-[11px] text-slate-300 mb-2.5">
+              {t.shareAppDesc}
+            </p>
+
+            <button
+              type="button"
+              onClick={handleShareApp}
+              className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:from-emerald-500 hover:via-teal-500 hover:to-sky-500 active:scale-[0.98] text-white font-extrabold rounded-xl shadow-lg shadow-emerald-950/40 border border-emerald-400/30 transition-all flex items-center justify-center gap-2.5 cursor-pointer"
+            >
+              <GooglePlayIcon className="w-5 h-5 flex-shrink-0 drop-shadow" />
+              <span className="text-sm font-bold tracking-wide font-display">
+                {t.shareAppBtn}
+              </span>
+              <Share2 className="w-4 h-4 text-emerald-100 flex-shrink-0" />
+            </button>
+
+            {shareFeedback && (
+              <div className="mt-2 py-1.5 px-3 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-semibold text-center flex items-center justify-center gap-1.5 animate-fade-in">
+                <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                <span>{shareFeedback}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2.5 pt-2 border-t border-slate-800">
+              <span className="truncate max-w-[190px] sm:max-w-[270px] font-mono text-[10px] text-slate-400">
+                com.lopezdigitalmedia.anotadordomino
+              </span>
+              <a
+                href={PLAY_STORE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold hover:underline ml-2 flex-shrink-0 cursor-pointer"
+              >
+                <span>{effectiveLang === 'es' ? 'Ver en Play Store' : 'Open Store'}</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
           </div>
 
